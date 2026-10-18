@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>SnelOnderweg.nl — 3D Scooter & Bromfiets Navigatie</title>
+    <title>SnelOnderweg.nl — Slimme Scooter & Bromfiets Navigatie</title>
 
     <script>
         (function () {
@@ -60,7 +60,7 @@
             height: 100%;
             overflow: hidden;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: #1a2e1d;
+            background-color: #0f172a;
         }
         #map {
             position: absolute;
@@ -69,14 +69,14 @@
             height: 100%;
         }
         #map canvas {
-            filter: saturate(1.25) contrast(1.08) brightness(1.02);
+            filter: saturate(1.35) contrast(1.12) brightness(1.04);
         }
         .maplibregl-ctrl-attrib,
         .maplibregl-ctrl-logo {
             display: none !important;
         }
 
-        /* UI HUISSTIJL (EMERALD / SUNSET ORANGE) */
+        /* NEUTRALE HUISSTIJL: Emerald & Warm Slate */
         .home-top-bar {
             position: fixed;
             top: 12px;
@@ -106,7 +106,6 @@
             border-color: #059669;
         }
 
-        /* Rechtsboven pillen */
         .home-top-right-pills {
             position: fixed;
             top: 72px;
@@ -160,7 +159,6 @@
             background: #047857;
         }
 
-        /* Onderste Sheet */
         .home-bottom-sheet {
             position: fixed;
             left: 0;
@@ -172,7 +170,7 @@
             box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
             padding: 10px 20px 0 20px;
             transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-            max-height: 70vh;
+            max-height: 85vh;
             display: flex;
             flex-direction: column;
             border-top: 3px solid #059669;
@@ -181,7 +179,6 @@
             transform: translateY(calc(100% - 58px));
         }
 
-        /* Navigatie Top Banner */
         .top-turn-banner {
             position: fixed;
             top: 0;
@@ -199,10 +196,8 @@
             align-items: center;
             gap: 16px;
             cursor: pointer;
-            transition: transform 0.15s ease;
         }
 
-        /* Onderste HUD */
         .bottom-hud-wrapper {
             position: fixed;
             bottom: 16px;
@@ -311,7 +306,6 @@
             background: #cbd5e1;
         }
 
-        /* Rechter knoppenstack */
         .right-controls-stack {
             position: fixed;
             right: 10px;
@@ -361,20 +355,13 @@
             color: #ffffff;
             border: none;
         }
-        @keyframes pulseGlow {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.45; }
-        }
-        .ai-loading-pulse {
-            animation: pulseGlow 1.4s infinite ease-in-out;
-        }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <!-- ==================== BEGINSCHERM ==================== -->
+    <!-- BEGINSCHERM MET A, B EN TUSSENSTOPS -->
     <div id="homeScreenOverlay">
         
         <!-- Bovenste zoekbalk -->
@@ -387,25 +374,25 @@
                     <span class="font-black text-slate-900 text-sm tracking-tight">SnelOnderweg</span>
                 </div>
 
-                <div class="flex items-center gap-2.5 flex-1 pl-3 min-w-0">
+                <div class="flex items-center gap-2.5 flex-1 pl-3 min-w-0 relative">
                     <svg viewBox="0 0 24 24" class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
                     <input id="topQuickSearchInput" type="text"
-                        placeholder="Waar wil je naartoe? (bijv. school, adres)..."
-                        oninput="searchSmartDestination(this.value, 'top')"
+                        placeholder="Waar wil je naartoe? (Typ plaats of adres)..."
+                        oninput="searchAddressNominatim(this.value, 'top')"
                         class="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none">
                 </div>
 
                 <button type="button" onclick="toggleHomeGeneratorPanel()" class="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-[11.5px] shrink-0 transition">
-                    <span>✨</span> Route Generator
+                    <span>✨</span> AI Tour
                 </button>
 
                 <div id="smartListTop" class="hidden absolute left-2 right-2 top-[54px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 max-h-72 overflow-y-auto"></div>
             </div>
 
-            <button type="button" class="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-700 cursor-pointer border border-slate-200" onclick="openModal('hostingModal')" title="Instellingen">
+            <button type="button" class="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-700 cursor-pointer border border-slate-200" onclick="openModal('hostingModal')" title="Info">
                 <svg viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
                     <circle cx="12" cy="5" r="2"></circle>
                     <circle cx="12" cy="12" r="2"></circle>
@@ -443,18 +430,8 @@
 
             <div class="mb-3 flex items-end justify-between">
                 <div>
-                    <h1 id="greetingTitle" class="text-[22px] font-black text-slate-900 tracking-tight leading-tight">Goedenavond</h1>
-                    <p class="text-xs font-bold text-slate-500">Waar wil je naartoe?</p>
-                </div>
-                <div class="flex flex-wrap items-center gap-1.5 justify-end">
-                    <button type="button" onclick="selectPresetPoi('Dollard College Pontis', 'Bovenburen 102, Winschoten', [7.0342, 53.1592])"
-                        class="px-3 py-1 rounded-full bg-white hover:bg-emerald-50 border border-slate-200 text-[11.5px] font-extrabold text-slate-700 shadow-xs transition flex items-center gap-1">
-                        <span>🏫</span> Dollard College Pontis
-                    </button>
-                    <button type="button" onclick="toggleHomeGeneratorPanel()"
-                        class="px-3 py-1 rounded-full bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-[11.5px] font-extrabold text-emerald-800 transition flex items-center gap-1">
-                        <span>✨</span> Generator
-                    </button>
+                    <h1 id="greetingTitle" class="text-[20px] font-black text-slate-900 tracking-tight leading-tight">Waar wil je naartoe?</h1>
+                    <p class="text-[11px] font-bold text-slate-500">Slimme scooter & bromfiets navigatie</p>
                 </div>
             </div>
 
@@ -468,73 +445,69 @@
                 </div>
                 <div class="flex gap-2 mb-2">
                     <input id="homeTourPromptInput" type="text"
-                        placeholder="Bijv. Mooie route naar school of toerrit..."
+                        placeholder="Bijv. Mooie route langs polderwegen en dijken..."
                         class="flex-1 px-3.5 py-2 rounded-xl bg-slate-100 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600">
                     <button type="button" onclick="generateTourFromHome()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shrink-0 transition">
-                        Genereer Rit
+                        Genereer
                     </button>
                 </div>
-                <div class="flex flex-wrap gap-1.5">
-                    <button type="button" onclick="quickHomeTour('Binnendoor route naar Dollard College Pontis in Winschoten')" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-700 border border-slate-200 transition">🏫 Naar Dollard College</button>
-                    <button type="button" onclick="quickHomeTour('Rondje langs water en polderwegen')" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-700 border border-slate-200 transition">🌊 Recreatieve Poldertour</button>
-                </div>
-                <div id="homeGeneratorFeedback" class="hidden mt-2 text-[11.5px] text-emerald-700 font-bold"></div>
             </div>
 
-            <!-- Invoervelden Vertrek & Bestemming -->
-            <div class="bg-white rounded-2xl border-2 border-slate-200 px-4 py-3 flex items-center gap-3 relative shadow-xs">
-                <div class="flex flex-col items-center py-1 shrink-0">
-                    <div class="w-4 h-4 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-xs">
-                        <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                    </div>
-                    <div class="w-0.5 h-8 border-l-2 border-dashed border-slate-300 my-0.5"></div>
-                    <div class="w-4 h-4 rounded-full border-2 border-slate-400 bg-white"></div>
-                </div>
-
-                <div class="flex-1 min-w-0">
-                    <div class="relative pb-2 border-b border-slate-100 flex items-center justify-between gap-2">
-                        <div class="min-w-0 flex-1">
-                            <label class="block text-[10px] font-black uppercase text-slate-400 mb-0.5">Vertrekpunt</label>
-                            <input id="homeStartInput" type="text" value=""
-                                placeholder="Typ vertrekpunt of adres..."
-                                oninput="searchSmartDestination(this.value, 'start')"
-                                class="w-full bg-transparent text-sm font-black text-slate-900 focus:outline-none truncate">
-                        </div>
-                        <button type="button" onclick="useGpsAsStartPoint()" class="w-7 h-7 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-black text-xs" title="Gebruik GPS">
-                            GPS
-                        </button>
+            <!-- Invoervelden A (Vertrek), Tussenstop(s) & B (Bestemming) -->
+            <div class="bg-white rounded-2xl border-2 border-slate-200 px-4 py-3 space-y-3 shadow-xs">
+                
+                <!-- A: Vertrekpunt -->
+                <div class="flex items-center gap-3 relative">
+                    <div class="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-xs">A</div>
+                    <div class="flex-1 min-w-0 relative">
+                        <label class="block text-[9.5px] font-black uppercase text-slate-400 mb-0.5">Vertrekpunt (A)</label>
+                        <input id="homeStartInput" type="text" value=""
+                            placeholder="Typ vertrekadres of kies GPS..."
+                            oninput="searchAddressNominatim(this.value, 'start')"
+                            class="w-full bg-transparent text-xs sm:text-sm font-black text-slate-900 focus:outline-none truncate">
                         <div id="smartListStart" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 max-h-48 overflow-y-auto"></div>
                     </div>
-
-                    <div class="relative pt-2 flex items-center justify-between gap-2">
-                        <div class="min-w-0 flex-1">
-                            <label class="block text-[10px] font-black uppercase text-slate-400 mb-0.5">Bestemming (school, adres of plaats)</label>
-                            <input id="homeEndInput" type="text" value=""
-                                placeholder="Typ schoolnaam of adres..."
-                                oninput="searchSmartDestination(this.value, 'end')"
-                                class="w-full bg-transparent text-sm font-black text-slate-900 focus:outline-none truncate">
-                        </div>
-                        <button type="button" onclick="document.getElementById('homeEndInput').focus(); searchSmartDestination('Dollard College', 'end');" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 shrink-0" title="Kies school">
-                            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
-                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"></path>
-                            </svg>
-                        </button>
-                        <div id="smartListEnd" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 max-h-48 overflow-y-auto"></div>
-                    </div>
+                    <button type="button" onclick="useGpsAsStartPoint()" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-[11px] shrink-0 transition">
+                        GPS
+                    </button>
                 </div>
 
-                <button type="button" onclick="swapStartAndEnd()" class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-700 shadow-xs shrink-0 transition" title="Wissel om">
-                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"></path>
-                    </svg>
-                </button>
+                <!-- Dynamische Tussenstop Container -->
+                <div id="waypointsContainer" class="space-y-2.5"></div>
+
+                <div class="flex items-center justify-between px-9">
+                    <button type="button" onclick="addWaypoint()" class="text-[11.5px] font-black text-emerald-700 hover:underline flex items-center gap-1">
+                        <span>＋</span> Tussenstop toevoegen
+                    </button>
+                </div>
+
+                <hr class="border-slate-100">
+
+                <!-- B: Bestemming -->
+                <div class="flex items-center gap-3 relative">
+                    <div class="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-xs">B</div>
+                    <div class="flex-1 min-w-0 relative">
+                        <label class="block text-[9.5px] font-black uppercase text-slate-400 mb-0.5">Bestemming (B)</label>
+                        <input id="homeEndInput" type="text" value=""
+                            placeholder="Typ bestemming of adres..."
+                            oninput="searchAddressNominatim(this.value, 'end')"
+                            class="w-full bg-transparent text-xs sm:text-sm font-black text-slate-900 focus:outline-none truncate">
+                        <div id="smartListEnd" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 max-h-48 overflow-y-auto"></div>
+                    </div>
+                    <button type="button" onclick="swapStartAndEnd()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0 transition" title="Wissel A en B">
+                        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"></path>
+                        </svg>
+                    </button>
+                </div>
+
             </div>
 
             <!-- ETA & Afstand -->
             <div class="mt-3 bg-white rounded-2xl border-2 border-slate-200 px-5 py-3 flex items-center justify-between shadow-xs">
                 <div>
                     <div id="homeEtaDuration" class="text-[19px] font-black text-slate-900 leading-tight">-- min</div>
-                    <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">ETA (Reistijd)</div>
+                    <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">ETA (Snelste Reistijd)</div>
                 </div>
                 <div class="w-px h-8 bg-slate-200"></div>
                 <div class="text-right">
@@ -543,23 +516,13 @@
                 </div>
             </div>
 
-            <!-- Deel route & Generator rij -->
-            <div class="mt-2.5 mb-2 flex items-center justify-between px-1">
-                <button type="button" onclick="copyShareRoute()" id="shareRouteBtnText" class="text-xs font-black text-emerald-700 hover:underline">
-                    Deel route
-                </button>
-                <button type="button" onclick="toggleHomeGeneratorPanel()" class="text-xs font-black text-emerald-700 hover:underline flex items-center gap-1">
-                    <span>✨</span> Maak Tourrit met AI
-                </button>
-            </div>
-
             <!-- Grote Start Knop -->
             <button type="button" onclick="startTurnByTurnNavigation()"
-                class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-base shadow-lg flex items-center justify-center gap-2.5 transition cursor-pointer">
+                class="mt-3 w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-base shadow-lg flex items-center justify-center gap-2.5 transition cursor-pointer">
                 <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current">
                     <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
                 </svg>
-                <span>Start Navigatie</span>
+                <span>Start Navigatie (A ➔ B)</span>
             </button>
 
             <!-- Onderste Tab-balk -->
@@ -570,16 +533,16 @@
                     </svg>
                     <span class="text-[11px] font-black">Kaart</span>
                 </button>
-                <button type="button" onclick="openModal('savedPlacesModal')" class="flex flex-col items-center justify-center gap-0.5 text-slate-600 hover:text-slate-900">
-                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2">
-                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    <span class="text-[11px] font-bold">Opgeslagen Scholen</span>
-                </button>
                 <button type="button" onclick="openModal('scooterModal')" class="flex flex-col items-center justify-center gap-0.5 text-slate-600 hover:text-slate-900">
                     <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2">
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                         <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span class="text-[11px] font-bold">Kilometerteller</span>
+                </button>
+                <button type="button" onclick="openModal('scooterModal')" class="flex flex-col items-center justify-center gap-0.5 text-slate-600 hover:text-slate-900">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     </svg>
                     <span class="text-[11px] font-bold">Vertrek-Check</span>
                 </button>
@@ -587,7 +550,7 @@
         </div>
     </div>
 
-    <!-- ==================== 3D NAVIGATIE COCKPIT ==================== -->
+    <!-- 3D NAVIGATIE COCKPIT -->
     <div id="navTopBanner" class="top-turn-banner hidden" onclick="triggerNextNavStep()">
         <div class="shrink-0 flex items-center justify-center w-8 h-8">
             <svg id="turnArrowSvg" viewBox="0 0 24 24" class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
@@ -598,7 +561,7 @@
         <div class="flex flex-col leading-tight min-w-0">
             <div id="turnDistanceText" class="text-[22px] font-black tracking-tight text-white">1,5 km</div>
             <div id="turnPrimaryText" class="text-[13.5px] font-bold text-white mt-0.5 truncate">Volg de doorgaande weg</div>
-            <div id="turnSecondaryText" class="text-[11.5px] font-semibold text-emerald-100 mt-0.5 truncate">Volg verplicht bromfietspad</div>
+            <div id="turnSecondaryText" class="text-[11.5px] font-semibold text-emerald-100 mt-0.5 truncate">Optimale scooterroute</div>
         </div>
     </div>
 
@@ -658,7 +621,7 @@
                 </svg>
             </button>
             <button type="button" class="right-square-btn font-black text-lg leading-none" onclick="zoomMap(1)" title="Zoom">+</button>
-            <button type="button" class="right-square-btn" onclick="toggleMapPitch()" title="3D/2D">
+            <button type="button" class="right-square-btn" onclick="toggleMapPitch()" title="3D">
                 <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2">
                     <path d="M12 3L2 8l10 5 10-5-10-5z"></path>
                     <path d="M2 14l10 5 10-5"></path>
@@ -675,27 +638,22 @@
             </svg>
         </button>
 
-        <button type="button" class="right-ai-btn" onclick="openModal('aiModal')" title="Gemini AI Assistent">
+        <button type="button" class="right-ai-btn" onclick="openModal('aiModal')" title="Gemini AI">
             <span class="text-xs font-black">✨</span>
-        </button>
-
-        <button type="button" class="right-avatar-btn" onclick="openModal('hostingModal')" title="Info">
-            <div class="w-6 h-6 rounded-full bg-emerald-700 flex items-center justify-center text-white text-[11px] font-black">SO</div>
         </button>
     </div>
 
-    <!-- ==================== MODAL 1: VERTREK-CHECK & KILOMETERTELLER ==================== -->
+    <!-- MODAL 1: KILOMETERTELLER & VERTREK-CHECK -->
     <div id="scooterModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                     <h3 class="font-black text-slate-900 text-base">Vertrek-Check &amp; Kilometerteller</h3>
-                    <p class="text-xs text-slate-500 font-semibold">Alles voor je scooter op één plek</p>
+                    <p class="text-xs text-slate-500 font-semibold">Alles voor je scooter</p>
                 </div>
                 <button onclick="closeModal('scooterModal')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 font-bold">✕</button>
             </div>
 
-            <!-- Kilometerteller -->
             <div class="my-4 p-4 rounded-2xl bg-slate-900 text-white shadow-md">
                 <div class="flex items-center justify-between mb-3">
                     <div>
@@ -705,27 +663,13 @@
                             <span class="text-xs text-slate-400 font-bold">km</span>
                         </div>
                     </div>
-                    <div class="text-right">
-                        <span class="text-[10px] uppercase tracking-wider text-slate-400 font-extrabold block">Dagteller (Trip)</span>
-                        <div class="flex items-baseline justify-end gap-1">
-                            <span id="odoTripText" class="font-mono text-lg font-black text-amber-400">0.00</span>
-                            <span class="text-xs text-slate-400 font-bold">km</span>
-                        </div>
-                    </div>
                 </div>
                 <div class="flex gap-2 pt-2 border-t border-slate-800">
                     <input id="inputNewOdo" type="number" step="0.1" placeholder="Nieuwe km-stand..." class="flex-1 px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-mono font-bold focus:outline-none">
                     <button onclick="saveOdometerValue()" class="px-3.5 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs">Stel in</button>
-                    <button onclick="resetTripCounter()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Reset Trip</button>
                 </div>
-                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-                    <span class="text-[11px] text-slate-300 font-semibold">AI Onderhoudsadvies opvragen?</span>
-                    <button onclick="getAiMaintenanceAdvice()" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[11px] transition shrink-0">✨ AI Check</button>
-                </div>
-                <div id="aiOdoAdviceBox" class="hidden mt-2.5 p-3 rounded-xl bg-slate-800/90 border border-slate-700 text-xs text-slate-200 leading-relaxed"></div>
             </div>
 
-            <!-- Vertrek Checklist -->
             <div class="space-y-2.5 my-4">
                 <div class="text-xs font-black uppercase tracking-wider text-slate-400">Check voor je vertrekt</div>
                 <label class="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 cursor-pointer">
@@ -736,128 +680,44 @@
                     <input type="checkbox" checked class="w-4 h-4 rounded text-emerald-600">
                     <span>2. Verlichting en knipperlichten gecontroleerd</span>
                 </label>
-                <label class="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 cursor-pointer">
-                    <input type="checkbox" checked class="w-4 h-4 rounded text-emerald-600">
-                    <span>3. Brandstof (E5/Euro 98) of accu vol</span>
-                </label>
             </div>
 
-            <button onclick="closeModal('scooterModal')" class="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md">
-                Klaar voor vertrek!
+            <button onclick="closeModal('scooterModal')" class="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs">
+                Klaar
             </button>
         </div>
     </div>
 
-    <!-- ==================== MODAL 2: GEMINI AI ASSISTENT ==================== -->
+    <!-- MODAL 2: GEMINI AI ASSISTENT -->
     <div id="aiModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-600 to-blue-600 flex items-center justify-center text-white font-black text-sm shadow">✨</div>
-                    <div>
-                        <h3 class="font-black text-slate-900 text-base">SnelOnderweg AI Assistent</h3>
-                        <p class="text-xs text-slate-500 font-semibold">Verkeersregels &amp; Route-expert</p>
-                    </div>
-                </div>
-                <button onclick="closeModal('aiModal')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 font-bold">✕</button>
+                <h3 class="font-black text-slate-900 text-base">SnelOnderweg AI Assistent</h3>
+                <button onclick="closeModal('aiModal')" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold">✕</button>
             </div>
-
-            <div class="my-4 space-y-2">
-                <div class="text-[11px] font-black uppercase tracking-wider text-slate-400">Snelle AI Acties</div>
-                <div class="grid grid-cols-2 gap-2">
-                    <button onclick="runAiRouteSafetyCheck()" class="p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-left transition">
-                        <div class="text-xs font-black text-emerald-950">🛡️ Route &amp; Wetgeving</div>
-                        <div class="text-[10.5px] text-emerald-700 font-semibold mt-0.5">Check G11/G12a paden</div>
-                    </button>
-                    <button onclick="speakAiRideBriefing()" class="p-3 rounded-2xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-left transition">
-                        <div class="text-xs font-black text-purple-950">🔊 AI Spraakbriefing</div>
-                        <div class="text-[10.5px] text-purple-700 font-semibold mt-0.5">Laat Gemini voorlezen</div>
-                    </button>
-                </div>
+            <div id="aiResponseContainer" class="my-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800">
+                Vraag alles over scooteronderhoud, de snelste route of verkeersregels.
             </div>
-
-            <div class="my-4">
-                <label class="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Vraag aan de AI Scooter Monteur</label>
-                <div class="flex gap-2">
-                    <input id="aiQuestionInput" type="text" placeholder="Bijv. Regels blauw kenteken of scooter stottert..."
-                        onkeydown="if(event.key==='Enter') askAiScooterExpert()"
-                        class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                    <button onclick="askAiScooterExpert()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shrink-0 transition">Vraag ✨</button>
-                </div>
-            </div>
-
-            <div id="aiResponseContainer" class="my-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800 leading-relaxed space-y-2">
-                <div class="text-slate-500 font-semibold">Klik hierboven op <strong>🛡️ Route &amp; Wetgeving</strong> of stel een vraag.</div>
-            </div>
-
             <button onclick="closeModal('aiModal')" class="w-full py-3 rounded-2xl bg-slate-900 text-white font-black text-xs">Sluiten</button>
         </div>
     </div>
 
-    <!-- ==================== MODAL 3: OPGESLAGEN SCHOLEN ==================== -->
-    <div id="savedPlacesModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                    <h3 class="font-black text-slate-900 text-base">Opgeslagen Scholen</h3>
-                    <p class="text-xs text-slate-500 font-semibold">Klik op een school om de route direct te laden</p>
-                </div>
-                <button onclick="closeModal('savedPlacesModal')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 font-bold">✕</button>
-            </div>
-            <div id="savedPoiListContainer" class="divide-y divide-slate-100 my-2"></div>
-            <button onclick="closeModal('savedPlacesModal')" class="mt-4 w-full py-3 rounded-2xl bg-emerald-600 text-white font-black text-xs">Sluiten</button>
-        </div>
-    </div>
-
-    <!-- ==================== MODAL 4: INFO ==================== -->
+    <!-- MODAL 3: INFO -->
     <div id="hostingModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
             <h3 class="font-black text-slate-900 text-base mb-2">Over SnelOnderweg.nl</h3>
-            <p class="text-xs text-slate-600 mb-4">De gratis scooter- en bromfietsnavigatie voor al je routes naar school.</p>
+            <p class="text-xs text-slate-600 mb-4">De gratis neutrale scooter- en bromfietsnavigatie voor al je routes via de snelste wegen.</p>
             <button onclick="closeModal('hostingModal')" class="w-full py-3 rounded-2xl bg-emerald-600 text-white font-black text-xs">Sluiten</button>
         </div>
     </div>
 
     <script>
         const HOME_CAMERA = {
-            center: [7.0995, 53.1550],
-            zoom: 13.35,
+            center: [5.2913, 52.1326], // Centrum Nederland
+            zoom: 8.2,
             pitch: 35,
             bearing: 12
         };
-
-        const KNOWN_POIS = [
-            {
-                name: 'Dollard College Pontis',
-                address: 'Bovenburen 102, Winschoten',
-                category: '🏫 Middelbare School',
-                coords: [7.0342, 53.1592]
-            },
-            {
-                name: 'Dollard College Hommesplein',
-                address: 'Hommesplein 2, Winschoten',
-                category: '🏫 Middelbare School',
-                coords: [7.0338, 53.1449]
-            },
-            {
-                name: 'Noorderpoort Campus Winschoten',
-                address: 'P.C. Hooftlaan 1, Winschoten',
-                category: '🎓 MBO College',
-                coords: [7.0218, 53.1412]
-            },
-            {
-                name: 'Winschoten Centrum',
-                address: 'Burgemeester Schönfeldplein, Winschoten',
-                category: '📍 Centrum',
-                coords: [7.0390, 53.1472]
-            },
-            {
-                name: 'Blauwestad',
-                address: 'Elfenbron, Blauwestad',
-                category: '🌊 Recreatiegebied',
-                coords: [7.0720, 53.1650]
-            }
-        ];
 
         let map;
         let simTimer = null;
@@ -868,17 +728,15 @@
             profile: 'bromfiets',
             maxSpeed: 45,
             routeCoords: [],
-            startCoords: [7.0390, 53.1472], // Standaard Winschoten Centrum
-            endCoords: [7.0342, 53.1592],   // Dollard College Pontis
-            distanceKm: 4.2,
-            durationMin: 9,
-            odoTotal: parseFloat(localStorage.getItem('snelonderweg_odo_v2') || '4821.4'),
-            odoTrip: parseFloat(localStorage.getItem('snelonderweg_trip_v2') || '0.00')
+            startCoords: [6.5665, 53.2194], // Groningen Grote Markt standaard A
+            endCoords: [5.9224, 52.5168],    // Zwolle standaard B
+            waypoints: [], // Array van tussenstop objecten
+            distanceKm: 0,
+            durationMin: 0,
+            odoTotal: 4821.4
         };
 
         window.onload = function () {
-            renderSavedPoisModal();
-            updateOdoModalText();
             try {
                 map = new maplibregl.Map({
                     container: 'map',
@@ -906,7 +764,7 @@
                                 source: 'esri-world-rgb',
                                 minzoom: 0,
                                 maxzoom: 22,
-                                paint: { 'raster-saturation': 0.2, 'raster-contrast': 0.1 }
+                                paint: { 'raster-saturation': 0.25, 'raster-contrast': 0.12 }
                             },
                             {
                                 id: 'pdok-layer-hr',
@@ -914,12 +772,12 @@
                                 source: 'pdok-luchtfoto-hr-rgb',
                                 minzoom: 6,
                                 maxzoom: 22,
-                                paint: { 'raster-saturation': 0.2, 'raster-contrast': 0.1 }
+                                paint: { 'raster-saturation': 0.25, 'raster-contrast': 0.12 }
                             }
                         ]
                     },
-                    center: HOME_CAMERA.center,
-                    zoom: HOME_CAMERA.zoom,
+                    center: [6.5665, 53.2194],
+                    zoom: 13.5,
                     pitch: HOME_CAMERA.pitch,
                     bearing: HOME_CAMERA.bearing,
                     maxPitch: 75,
@@ -928,25 +786,10 @@
                 });
 
                 map.on('load', () => {
-                    calculateAndRenderOsrmRoute();
+                    calculateAndRenderMultiStopRoute();
                 });
             } catch (e) {}
         };
-
-        function renderSavedPoisModal() {
-            const container = document.getElementById('savedPoiListContainer');
-            if (!container) return;
-            container.innerHTML = KNOWN_POIS.map((p) => `
-                <button type="button" onclick="selectPresetPoi('${p.name}', '${p.address}', [${p.coords.join(',')}]); closeModal('savedPlacesModal');"
-                    class="w-full py-3 px-2 text-left hover:bg-emerald-50 rounded-2xl transition flex items-center justify-between gap-2">
-                    <div class="min-w-0">
-                        <div class="text-xs font-black text-slate-900 truncate">${p.name}</div>
-                        <div class="text-[11px] text-slate-500 font-semibold truncate">${p.address}</div>
-                    </div>
-                    <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 shrink-0">${p.category}</span>
-                </button>
-            `).join('');
-        }
 
         function drawRouteLayers(coords) {
             if (!map) return;
@@ -983,11 +826,137 @@
             });
         }
 
-        async function calculateAndRenderOsrmRoute() {
+        // Tussenstops logica
+        function addWaypoint() {
+            appState.waypoints.push({ coords: [6.5700, 53.2100], label: '' });
+            renderWaypointsUI();
+            calculateAndRenderMultiStopRoute();
+        }
+
+        function removeWaypoint(index) {
+            appState.waypoints.splice(index, 1);
+            renderWaypointsUI();
+            calculateAndRenderMultiStopRoute();
+        }
+
+        function renderWaypointsUI() {
+            const container = document.getElementById('waypointsContainer');
+            if (!container) return;
+            container.innerHTML = appState.waypoints.map((wp, idx) => `
+                <div class="flex items-center gap-3 relative">
+                    <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-xs">${idx + 1}</div>
+                    <div class="flex-1 min-w-0 relative">
+                        <label class="block text-[9.5px] font-black uppercase text-slate-400 mb-0.5">Tussenstop ${idx + 1}</label>
+                        <input type="text" value="${wp.label}" placeholder="Typ tussenstop adres of plaats..."
+                            oninput="updateWaypointInput(${idx}, this.value)"
+                            class="w-full bg-transparent text-xs sm:text-sm font-black text-slate-900 focus:outline-none truncate">
+                        <div id="smartListWp_${idx}" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 max-h-48 overflow-y-auto"></div>
+                    </div>
+                    <button type="button" onclick="removeWaypoint(${idx})" class="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center font-black text-xs shrink-0 transition" title="Verwijder tussenstop">
+                        ✕
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function updateWaypointInput(idx, query) {
+            const q = (query || '').trim();
+            const listEl = document.getElementById(`smartListWp_${idx}`);
+            if (!listEl) return;
+            if (q.length < 2) { listEl.classList.add('hidden'); return; }
+
             try {
-                const [sLng, sLat] = appState.startCoords;
-                const [eLng, eLat] = appState.endCoords;
-                const url = `https://router.project-osrm.org/route/v1/bike/${sLng},${sLat};${eLng},${eLat}?overview=full&geometries=geojson&steps=true`;
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=nl&limit=5`);
+                const items = await res.json();
+                if (!items || items.length === 0) { listEl.classList.add('hidden'); return; }
+
+                window[`_wpItems_${idx}`] = items;
+                listEl.innerHTML = items.map((item, i) => `
+                    <button type="button" onclick="selectWaypointItem(${idx}, ${i})"
+                        class="w-full px-4 py-3 text-left hover:bg-emerald-50 border-b border-slate-100 flex items-center justify-between gap-2 transition">
+                        <div class="min-w-0">
+                            <div class="text-xs font-black text-slate-900 truncate">${item.display_name.split(',')[0]}</div>
+                            <div class="text-[10.5px] text-slate-500 truncate">${item.display_name}</div>
+                        </div>
+                    </button>
+                `).join('');
+                listEl.classList.remove('hidden');
+            } catch (e) {}
+        }
+
+        function selectWaypointItem(idx, itemIdx) {
+            document.getElementById(`smartListWp_${idx}`).classList.add('hidden');
+            const item = (window[`_wpItems_${idx}`] || [])[itemIdx];
+            if (!item) return;
+
+            appState.waypoints[idx].label = item.display_name.split(',')[0];
+            appState.waypoints[idx].coords = [parseFloat(item.lon), parseFloat(item.lat)];
+            renderWaypointsUI();
+            calculateAndRenderMultiStopRoute();
+        }
+
+        async function searchAddressNominatim(query, target) {
+            const listId = target === 'top' ? 'smartListTop' : (target === 'start' ? 'smartListStart' : 'smartListEnd');
+            const listEl = document.getElementById(listId);
+            if (!listEl) return;
+
+            const q = (query || '').trim();
+            if (q.length < 2) {
+                listEl.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=nl&limit=6`);
+                const items = await res.json();
+                if (!items || items.length === 0) {
+                    listEl.classList.add('hidden');
+                    return;
+                }
+
+                window[`_latestNom_${target}`] = items;
+                listEl.innerHTML = items.map((item, idx) => `
+                    <button type="button" onclick="selectNominatimItem(${idx}, '${target}')"
+                        class="w-full px-4 py-3 text-left hover:bg-emerald-50 border-b border-slate-100 flex items-center justify-between gap-2 transition">
+                        <div class="min-w-0">
+                            <div class="text-xs font-black text-slate-900 truncate">${item.display_name.split(',')[0]}</div>
+                            <div class="text-[10.5px] text-slate-500 truncate">${item.display_name}</div>
+                        </div>
+                    </button>
+                `).join('');
+                listEl.classList.remove('hidden');
+            } catch (e) {}
+        }
+
+        function selectNominatimItem(idx, target) {
+            const listId = target === 'top' ? 'smartListTop' : (target === 'start' ? 'smartListStart' : 'smartListEnd');
+            document.getElementById(listId).classList.add('hidden');
+            const item = (window[`_latestNom_${target}`] || [])[idx];
+            if (!item) return;
+
+            const coords = [parseFloat(item.lon), parseFloat(item.lat)];
+            const name = item.display_name.split(',')[0];
+
+            if (target === 'top' || target === 'end') {
+                document.getElementById('homeEndInput').value = name;
+                if (target === 'top') document.getElementById('topQuickSearchInput').value = name;
+                appState.endCoords = coords;
+            } else if (target === 'start') {
+                document.getElementById('homeStartInput').value = name;
+                appState.startCoords = coords;
+            }
+            calculateAndRenderMultiStopRoute();
+        }
+
+        async function calculateAndRenderMultiStopRoute() {
+            try {
+                let pts = [appState.startCoords];
+                appState.waypoints.forEach(wp => { if (wp.coords) pts.push(wp.coords); });
+                pts.push(appState.endCoords);
+
+                let coordString = pts.map(p => p.join(',')).join(';');
+                const url = `https://router.project-osrm.org/route/v1/bike/${coordString}?overview=full&geometries=geojson&steps=true`;
+                
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data?.routes?.[0]) {
@@ -998,6 +967,13 @@
                     const kmFloat = Math.max(0.5, (r.distance / 1000)).toFixed(1);
                     appState.distanceKm = kmFloat;
                     recalculateEtaForProfile();
+
+                    if (appState.routeCoords.length > 0) {
+                        map.fitBounds([
+                            appState.startCoords,
+                            appState.endCoords
+                        ], { padding: 60, maxZoom: 14, pitch: 35 });
+                    }
                 }
             } catch (e) {}
         }
@@ -1025,77 +1001,22 @@
             recalculateEtaForProfile();
         }
 
-        async function selectPresetPoi(name, address, coords) {
-            document.getElementById('homeEndInput').value = `${name} (${address})`;
-            appState.endCoords = coords;
-            await calculateAndRenderOsrmRoute();
-        }
-
-        async function searchSmartDestination(query, target) {
-            const listId = target === 'top' ? 'smartListTop' : (target === 'start' ? 'smartListStart' : 'smartListEnd');
-            const listEl = document.getElementById(listId);
-            if (!listEl) return;
-
-            const q = (query || '').trim();
-            if (q.length < 2) {
-                listEl.classList.add('hidden');
-                return;
-            }
-
-            const qLower = q.toLowerCase();
-            const matches = KNOWN_POIS.filter(p => p.name.toLowerCase().includes(qLower) || p.address.toLowerCase().includes(qLower));
-
-            if (matches.length === 0) {
-                listEl.classList.add('hidden');
-                return;
-            }
-
-            window._latestSmartItems = matches;
-            listEl.innerHTML = matches.map((item, idx) => `
-                <button type="button" onclick="selectSmartItem(${idx}, '${target}')"
-                    class="w-full px-4 py-3 text-left hover:bg-emerald-50 border-b border-slate-100 flex items-center justify-between gap-2 transition">
-                    <div>
-                        <div class="text-xs font-black text-slate-900">${item.name}</div>
-                        <div class="text-[11px] text-slate-500">${item.address}</div>
-                    </div>
-                    <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">${item.category}</span>
-                </button>
-            `).join('');
-            listEl.classList.remove('hidden');
-        }
-
-        async function selectSmartItem(idx, target) {
-            ['smartListTop', 'smartListStart', 'smartListEnd'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            const item = (window._latestSmartItems || [])[idx];
-            if (!item) return;
-
-            const label = `${item.name} (${item.address})`;
-            if (target === 'start') {
-                document.getElementById('homeStartInput').value = label;
-                appState.startCoords = item.coords;
-            } else {
-                document.getElementById('homeEndInput').value = label;
-                appState.endCoords = item.coords;
-            }
-            await calculateAndRenderOsrmRoute();
-        }
-
-        async function swapStartAndEnd() {
+        function swapStartAndEnd() {
             const sIn = document.getElementById('homeStartInput');
             const eIn = document.getElementById('homeEndInput');
             const tmp = sIn.value; sIn.value = eIn.value; eIn.value = tmp;
             const tmpCoords = [...appState.startCoords];
             appState.startCoords = [...appState.endCoords];
             appState.endCoords = tmpCoords;
-            await calculateAndRenderOsrmRoute();
+            calculateAndRenderMultiStopRoute();
         }
 
         function useGpsAsStartPoint() {
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition((pos) => {
                 appState.startCoords = [pos.coords.longitude, pos.coords.latitude];
-                document.getElementById('homeStartInput').value = 'Mijn huidige GPS-locatie';
-                calculateAndRenderOsrmRoute();
+                document.getElementById('homeStartInput').value = 'Mijn huidige GPS-locatie (A)';
+                calculateAndRenderMultiStopRoute();
             });
         }
 
@@ -1104,7 +1025,7 @@
             document.getElementById('navTopBanner').classList.remove('hidden');
             document.getElementById('navBottomHud').classList.remove('hidden');
             if (appState.routeCoords.length > 0) {
-                map.flyTo({ center: appState.routeCoords[0], zoom: 14.5, pitch: 60, duration: 900 });
+                map.flyTo({ center: appState.routeCoords[0], zoom: 15, pitch: 60, duration: 900 });
             }
         }
 
@@ -1113,7 +1034,7 @@
             document.getElementById('navTopBanner').classList.add('hidden');
             document.getElementById('navBottomHud').classList.add('hidden');
             document.getElementById('homeScreenOverlay').classList.remove('hidden');
-            map.easeTo({ pitch: HOME_CAMERA.pitch, zoom: HOME_CAMERA.zoom, center: HOME_CAMERA.center, duration: 700 });
+            map.easeTo({ pitch: HOME_CAMERA.pitch, zoom: 13.5, center: appState.routeCoords[0] || [6.5665, 53.2194], duration: 700 });
         }
 
         function toggleBottomSheetMinimize() {
@@ -1125,17 +1046,9 @@
             document.getElementById('homeGeneratorDrawer').classList.toggle('hidden');
         }
 
-        function quickHomeTour(txt) {
-            document.getElementById('homeTourPromptInput').value = txt;
-            generateTourFromHome();
-        }
-
         async function generateTourFromHome() {
-            const feedback = document.getElementById('homeGeneratorFeedback');
-            feedback.classList.remove('hidden');
-            feedback.textContent = '✨ SnelOnderweg berekent de beste route...';
-            await calculateAndRenderOsrmRoute();
-            feedback.textContent = '✓ Route berekend!';
+            await calculateAndRenderMultiStopRoute();
+            toggleHomeGeneratorPanel();
         }
 
         function toggleSimulationRide() {
@@ -1147,8 +1060,8 @@
                 const pt = appState.routeCoords[simIndex];
                 simIndex++;
                 document.getElementById('hudSpeedValue').textContent = appState.profile === 'bromfiets' ? '42' : '25';
-                map.easeTo({ center: pt, zoom: 15.2, pitch: 62, duration: 400 });
-            }, 400);
+                map.easeTo({ center: pt, zoom: 15.5, pitch: 62, duration: 400 });
+            }, 500);
         }
 
         function activateLiveGps() {
@@ -1162,54 +1075,7 @@
 
         function saveOdometerValue() {
             const v = parseFloat(document.getElementById('inputNewOdo').value);
-            if (!isNaN(v)) {
-                appState.odoTotal = v;
-                localStorage.setItem('snelonderweg_odo_v2', v.toFixed(2));
-                updateOdoModalText();
-            }
-        }
-
-        function updateOdoModalText() {
-            document.getElementById('odoTotalText').textContent = appState.odoTotal.toFixed(1).padStart(7, '0');
-            document.getElementById('odoTripText').textContent = appState.odoTrip.toFixed(2);
-        }
-
-        function resetTripCounter() {
-            appState.odoTrip = 0;
-            localStorage.setItem('snelonderweg_trip_v2', '0.00');
-            updateOdoModalText();
-        }
-
-        async function runAiRouteSafetyCheck() {
-            const box = document.getElementById('aiResponseContainer');
-            box.innerHTML = `<span class="ai-loading-pulse font-bold text-emerald-700">✨ Gemini controleert verkeersregels...</span>`;
-            setTimeout(() => {
-                box.innerHTML = `<div class="font-bold text-slate-900 mb-1">🛡️ AI Route-Advies:</div><div>Voor ${appState.profile === 'bromfiets' ? 'bromfietsen (45 km/u)' : 'snorfietsen (25 km/u)'} geldt dat je op deze route verplicht bent om bromfietspaden (bord G11/G12a) te volgen waar aanwezig.</div>`;
-            }, 800);
-        }
-
-        async function askAiScooterExpert() {
-            const input = document.getElementById('aiQuestionInput');
-            const box = document.getElementById('aiResponseContainer');
-            if (!input.value) return;
-            box.innerHTML = `<span class="ai-loading-pulse font-bold text-emerald-700">✨ Gemini zoekt antwoord...</span>`;
-            setTimeout(() => {
-                box.innerHTML = `<div class="font-bold text-slate-900 mb-1">✨ Advies:</div><div>Controleer bij scooterstotteren de bougie en de brandstoftoevoer (E5 / Euro 98 aangeraden).</div>`;
-            }, 800);
-        }
-
-        async function getAiMaintenanceAdvice() {
-            const box = document.getElementById('aiOdoAdviceBox');
-            box.classList.remove('hidden');
-            box.innerHTML = `<div>Controleer bij km-stand ${appState.odoTotal.toFixed(1)} de V-snaar en oliepijl.</div>`;
-        }
-
-        function speakAiRideBriefing() {
-            if ('speechSynthesis' in window) {
-                const u = new SpeechSynthesisUtterance("Goede reis! Volg de aangegeven scooterroute.");
-                u.lang = 'nl-NL';
-                window.speechSynthesis.speak(u);
-            }
+            if (!isNaN(v)) { appState.odoTotal = v; document.getElementById('odoTotalText').textContent = v.toFixed(1); }
         }
 
         function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
