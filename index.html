@@ -880,3 +880,2050 @@
         [
           [7.0435, 53.1585],
           [7.0585, 53.1585],
+          [7.0585, 53.1665],
+          [7.0435, 53.1665],
+          [7.0435, 53.1585]
+        ]
+      ]
+    };
+
+    let map = null;
+    let routeBadgeMarkers = [];
+    let rvvSignMarkers = [];
+    let waypointMarkers = [];
+    let userLocationMarker = null;
+    let activeSearchTarget = 'destination'; // 'global' | 'origin' | 'destination' | 'waypoint-N'
+    let searchDebounceTimer = null;
+
+    /*************************************************************************
+     * KAARTSTIJLEN (GOOGLE MAPS HYBRID, GOOGLE WEGEN, PDOK LUCHTFOTO)
+     *************************************************************************/
+    const MAP_STYLES = [
+      {
+        name: 'Google Hybrid',
+        style: {
+          version: 8,
+          sources: {
+            googleHybrid: {
+              type: 'raster',
+              tiles: [
+                'https://mt0.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}',
+                'https://mt1.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}',
+                'https://mt2.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}',
+                'https://mt3.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}'
+              ],
+              tileSize: 256,
+              attribution: '© Google Maps Hybrid • SnelOnderweg.nl'
+            }
+          },
+          layers: [
+            {
+              id: 'google-hybrid-layer',
+              type: 'raster',
+              source: 'googleHybrid',
+              minzoom: 0,
+              maxzoom: 22
+            }
+          ]
+        }
+      },
+      {
+        name: 'Google Wegen',
+        style: {
+          version: 8,
+          sources: {
+            googleRoadmap: {
+              type: 'raster',
+              tiles: [
+                'https://mt0.google.com/vt/lyrs=m&hl=nl&x={x}&y={y}&z={z}',
+                'https://mt1.google.com/vt/lyrs=m&hl=nl&x={x}&y={y}&z={z}'
+              ],
+              tileSize: 256,
+              attribution: '© Google Maps Wegenkaart'
+            }
+          },
+          layers: [
+            {
+              id: 'google-roadmap-layer',
+              type: 'raster',
+              source: 'googleRoadmap',
+              minzoom: 0,
+              maxzoom: 22
+            }
+          ]
+        }
+      },
+      {
+        name: 'PDOK 8cm Luchtfoto',
+        style: {
+          version: 8,
+          sources: {
+            pdokAerial: {
+              type: 'raster',
+              tiles: [
+                'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg'
+              ],
+              tileSize: 256,
+              attribution: '© PDOK Hoge Resolutie Luchtfoto'
+            }
+          },
+          layers: [
+            {
+              id: 'pdok-aerial-layer',
+              type: 'raster',
+              source: 'pdokAerial',
+              minzoom: 0,
+              maxzoom: 21
+            }
+          ]
+        }
+      }
+    ];
+
+    /*************************************************************************
+     * INITIALISATIE BIJ OPSTARTEN
+     *************************************************************************/
+    window.addEventListener('DOMContentLoaded', () => {
+      updateGreetingByTime();
+      initVehicleModeUI();
+      initInputsFromState();
+      renderWaypointsList();
+      renderFavoritesList();
+      renderOdometerAndMaintenance();
+      renderDepartureChecklist();
+      initSearchListeners();
+      initMapLibre();
+      startBackgroundGpsTracker();
+    });
+
+    function updateGreetingByTime() {
+      const hour = new Date().getHours();
+      let greet = 'Goedenavond';
+      if (hour >= 5 && hour < 12) greet = 'Goedemorgen';
+      else if (hour >= 12 && hour < 18) greet = 'Goedemiddag';
+      const el = document.getElementById('dynamicGreeting');
+      if (el) el.textContent = `${greet}, veilig onderweg!`;
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const colors = {
+        info: 'bg-slate-900/95 border-emerald-500 text-white',
+        warn: 'bg-amber-950/95 border-amber-400 text-amber-100',
+        error: 'bg-red-950/95 border-red-500 text-red-100'
+      };
+      const toast = document.createElement('div');
+      toast.className = `px-4 py-2.5 rounded-2xl border shadow-2xl text-xs sm:text-sm font-bold transition-all duration-300 pointer-events-auto ${colors[type] || colors.info}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3600);
+    }
+
+    /*************************************************************************
+     * MAPLIBRE GL JS 3D KAART INITIALISATIE
+     *************************************************************************/
+    function initMapLibre() {
+      map = new maplibregl.Map({
+        container: 'map',
+        style: MAP_STYLES[AppState.mapStyleIndex].style,
+        center: [AppState.origin.lon, AppState.origin.lat],
+        zoom: 12.6,
+        pitch: 45,
+        bearing: 0,
+        attributionControl: false
+      });
+
+      map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+
+      map.on('load', () => {
+        setupRouteLayersOnMap();
+        calculateAndRenderRoute();
+      });
+
+      map.on('dragstart', () => {
+        if (AppState.isNavigating) {
+          AppState.gpsLocked = false;
+          updateGpsLockIndicator();
+        }
+      });
+
+      // Klik op de kaart om snel een bestemming te kiezen als je niet navigeert
+      map.on('click', (e) => {
+        // Controleer eerst of op een alternatieve route-lijn is geklikt
+        const features = map.queryRenderedFeatures(e.point, {
+          layers: ['route-alt-0', 'route-alt-1', 'route-alt-2'].filter(id => map.getLayer(id))
+        });
+        if (features && features.length > 0) {
+          const clickedIdx = features[0].properties.routeIndex;
+          if (typeof clickedIdx === 'number') {
+            selectRouteAlternative(clickedIdx);
+            return;
+          }
+        }
+      });
+    }
+
+    function setupRouteLayersOnMap() {
+      if (!map) return;
+
+      // Voeg lege GeoJSON bronnen toe voor maximaal 3 alternatieve routes + actieve route
+      for (let i = 0; i < 3; i++) {
+        const sourceId = `route-source-${i}`;
+        if (!map.getSource(sourceId)) {
+          map.addSource(sourceId, {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+        }
+        const casingId = `route-alt-casing-${i}`;
+        const layerId = `route-alt-${i}`;
+        if (!map.getLayer(casingId)) {
+          map.addLayer({
+            id: casingId,
+            type: 'line',
+            source: sourceId,
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-color': '#0f172a',
+              'line-width': 9,
+              'line-opacity': 0.55
+            }
+          });
+        }
+        if (!map.getLayer(layerId)) {
+          map.addLayer({
+            id: layerId,
+            type: 'line',
+            source: sourceId,
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-color': '#64748b',
+              'line-width': 5,
+              'line-opacity': 0.75
+            }
+          });
+        }
+      }
+
+      // Actieve aanbevolen route bovenop (Witte rand 10px + Emerald #059669 6px)
+      if (!map.getSource('active-route-source')) {
+        map.addSource('active-route-source', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+      }
+      if (!map.getLayer('active-route-casing')) {
+        map.addLayer({
+          id: 'active-route-casing',
+          type: 'line',
+          source: 'active-route-source',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 10,
+            'line-opacity': 0.98
+          }
+        });
+      }
+      if (!map.getLayer('active-route-line')) {
+        map.addLayer({
+          id: 'active-route-line',
+          type: 'line',
+          source: 'active-route-source',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#059669',
+            'line-width': 6,
+            'line-opacity': 1
+          }
+        });
+      }
+    }
+
+    function cycleMapStyle() {
+      AppState.mapStyleIndex = (AppState.mapStyleIndex + 1) % MAP_STYLES.length;
+      const chosen = MAP_STYLES[AppState.mapStyleIndex];
+      document.getElementById('layerSwitchLabel').textContent = `Kaart: ${chosen.name}`;
+      if (!map) return;
+      map.setStyle(chosen.style);
+      map.once('styledata', () => {
+        setupRouteLayersOnMap();
+        drawAllRoutesOnMap();
+      });
+    }
+
+    /*************************************************************************
+     * SNORFIETS (25) / BROMFIETS (45) MODUS SCHAKELAAR (RVV 1990)
+     *************************************************************************/
+    function setVehicleMode(mode) {
+      AppState.vehicleMode = mode === 'snor' ? 'snor' : 'brom';
+      SafeStorage.set('so_vehicle_mode', AppState.vehicleMode);
+      initVehicleModeUI();
+      calculateAndRenderRoute();
+    }
+
+    function initVehicleModeUI() {
+      const isBrom = AppState.vehicleMode === 'brom';
+      const snorBtn = document.getElementById('modeSnorBtn');
+      const bromBtn = document.getElementById('modeBromBtn');
+      const rvvHeaderSub = document.getElementById('rvvHeaderSub');
+      const rvvRouteDescription = document.getElementById('rvvRouteDescription');
+      const speedLimitSub = document.getElementById('speedLimitSub');
+      const cockpitVehiclePill = document.getElementById('cockpitVehiclePill');
+
+      if (isBrom) {
+        bromBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-amber-400 text-slate-950 shadow-md';
+        snorBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white';
+        if (rvvHeaderSub) rvvHeaderSub.textContent = 'Bromfiets 45 • Geel';
+        if (rvvRouteDescription) {
+          rvvRouteDescription.textContent = 'Bromfiets (45 km/u): Rijbaan (50/60 km/u) & verplicht G12a-pad. Verboden op G11-fietspad & C13.';
+        }
+        if (speedLimitSub) speedLimitSub.textContent = 'MAX 45';
+        if (cockpitVehiclePill) {
+          cockpitVehiclePill.textContent = 'BROM 45';
+          cockpitVehiclePill.className = 'px-2.5 py-0.5 rounded-lg text-xs font-black bg-amber-400 text-slate-950 uppercase';
+        }
+      } else {
+        snorBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-sky-400 text-slate-950 shadow-md';
+        bromBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white';
+        if (rvvHeaderSub) rvvHeaderSub.textContent = 'Snorfiets 25 • Blauw';
+        if (rvvRouteDescription) {
+          rvvRouteDescription.textContent = 'Snorfiets (25 km/u): Verplicht op G11 & G12a fietspaden (helmplicht actief). Mijdt drukke autorijbanen.';
+        }
+        if (speedLimitSub) speedLimitSub.textContent = 'MAX 25';
+        if (cockpitVehiclePill) {
+          cockpitVehiclePill.textContent = 'SNOR 25';
+          cockpitVehiclePill.className = 'px-2.5 py-0.5 rounded-lg text-xs font-black bg-sky-400 text-slate-950 uppercase';
+        }
+      }
+    }
+
+    /*************************************************************************
+     * VALHALLA POLYLINE6 DECODER (1e6 PRECISIE) & WISKUNDE HULPFUNCTIES
+     *************************************************************************/
+    function decodePolyline6(str) {
+      let index = 0;
+      let lat = 0;
+      let lng = 0;
+      const coordinates = [];
+      const factor = 1e6;
+
+      while (index < str.length) {
+        let shift = 0;
+        let result = 0;
+        let byte = null;
+
+        do {
+          byte = str.charCodeAt(index++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20);
+
+        const deltaLat = (result & 1) ? ~(result >> 1) : (result >> 1);
+        lat += deltaLat;
+
+        shift = 0;
+        result = 0;
+
+        do {
+          byte = str.charCodeAt(index++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20);
+
+        const deltaLng = (result & 1) ? ~(result >> 1) : (result >> 1);
+        lng += deltaLng;
+
+        coordinates.push([lng / factor, lat / factor]);
+      }
+      return coordinates;
+    }
+
+    // Haversine afstand in kilometers tussen twee punten
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Bereken totale lengte van een [lon, lat] coördinatenlijst in km
+    function computeGeometryLengthKm(coords) {
+      if (!coords || coords.length < 2) return 0;
+      let total = 0;
+      for (let i = 1; i < coords.length; i++) {
+        total += haversineKm(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]);
+      }
+      return total;
+    }
+
+    // Bereken kompas-bearing tussen twee coördinaten
+    function computeBearing(lat1, lon1, lat2, lon2) {
+      const toRad = Math.PI / 180;
+      const toDeg = 180 / Math.PI;
+      const dLon = (lon2 - lon1) * toRad;
+      const y = Math.sin(dLon) * Math.cos(lat2 * toRad);
+      const x =
+        Math.cos(lat1 * toRad) * Math.sin(lat2 * toRad) -
+        Math.sin(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.cos(dLon);
+      return (Math.atan2(y, x) * toDeg + 360) % 360;
+    }
+
+    // Anti-U-Turn & Spur Sanitizer: verwijdert korte doodlopende prikkers en 180-graden lussen
+    function sanitizeGeometryAndRemoveSpurs(coords) {
+      if (!Array.isArray(coords) || coords.length < 4) return coords || [];
+      const cleaned = [coords[0]];
+      for (let i = 1; i < coords.length - 1; i++) {
+        const prev = cleaned[cleaned.length - 1];
+        const curr = coords[i];
+        const next = coords[i + 1];
+        const distBackNextMeters = haversineKm(prev[1], prev[0], next[1], next[0]) * 1000;
+        const distSpikeMeters = haversineKm(prev[1], prev[0], curr[1], curr[0]) * 1000;
+
+        // Als de route een zijstraat inschiet (< 65m) en meteen terugkeert naar hetzelfde punt, knip de lus eruit
+        if (distSpikeMeters > 6 && distSpikeMeters < 65 && distBackNextMeters < 12) {
+          continue;
+        }
+        cleaned.push(curr);
+      }
+      cleaned.push(coords[coords.length - 1]);
+      return cleaned;
+    }
+
+    /*************************************************************************
+     * SCOOTMAPS-KWALITEIT ROUTERING VIA VALHALLA + "1 MINUUT" BUG FIX
+     *************************************************************************/
+    function buildValhallaPayload(pointsList, mode, variant = 'standard') {
+      const locations = pointsList.map((pt, idx) => ({
+        lat: Number(pt.lat),
+        lon: Number(pt.lon),
+        type: idx === 0 || idx === pointsList.length - 1 ? 'break' : 'through'
+      }));
+
+      if (mode === 'brom') {
+        // Bromfiets (45 km/u): Rijbaan (50/60 km/u) en G12a-bromfietspaden, geen G11-fietspaden, geen snelwegen
+        const scooterOptions = {
+          top_speed: 45,
+          use_primary: variant === 'polder60' ? 0.02 : 0.1,
+          use_hills: 0.5,
+          use_tracks: 0.0,
+          use_living_streets: 0.3,
+          shortest: variant === 'polder60'
+        };
+        return {
+          locations,
+          costing: 'motor_scooter',
+          costing_options: {
+            motor_scooter: scooterOptions
+          },
+          exclude_polygons: AppState.forbiddenC13Polygons,
+          alternates: 2,
+          units: 'kilometers',
+          language: 'nl-NL'
+        };
+      } else {
+        // Snorfiets (25 km/u): Verplichte fietspaden (G11/G12a), mijdt grote autorijbanen en onverharde paden
+        const bicycleOptions = {
+          bicycle_type: 'Hybrid',
+          cycling_speed: 24,
+          use_roads: variant === 'polder60' ? 0.0 : 0.1,
+          use_hills: 0.2,
+          avoid_bad_surfaces: 0.95
+        };
+        return {
+          locations,
+          costing: 'bicycle',
+          costing_options: {
+            bicycle: bicycleOptions
+          },
+          exclude_polygons: AppState.forbiddenC13Polygons,
+          alternates: 2,
+          units: 'kilometers',
+          language: 'nl-NL'
+        };
+      }
+    }
+
+    // Parseert een individuele Valhalla `trip` naar een rijk SnelOnderweg route-object
+    function parseValhallaTrip(trip, mode) {
+      if (!trip || !Array.isArray(trip.legs) || trip.legs.length === 0) return null;
+
+      let combinedCoords = [];
+      let combinedManeuvers = [];
+
+      trip.legs.forEach((leg) => {
+        const legCoords = decodePolyline6(leg.shape || '');
+        const coordOffset = combinedCoords.length > 0 ? combinedCoords.length - 1 : 0;
+
+        if (combinedCoords.length > 0 && legCoords.length > 0) {
+          combinedCoords.push(...legCoords.slice(1));
+        } else {
+          combinedCoords.push(...legCoords);
+        }
+
+        (leg.maneuvers || []).forEach((m) => {
+          const beginIdx = Math.min(
+            combinedCoords.length - 1,
+            Math.max(0, (m.begin_shape_index || 0) + coordOffset)
+          );
+          const pt = combinedCoords[beginIdx] || combinedCoords[0];
+          const streetNames = Array.isArray(m.street_names) ? m.street_names.join(' / ') : '';
+
+          combinedManeuvers.push({
+            instruction: m.instruction || 'Volg de weg',
+            streetName: streetNames || 'Doorgaande weg',
+            lengthKm: Number(m.length || 0),
+            timeSec: Number(m.time || 0),
+            type: m.type || 1,
+            roundaboutExit: m.roundabout_exit_count || null,
+            coord: pt,
+            rvvNote: deriveRvvNoteForStep(streetNames, m.instruction || '', mode)
+          });
+        });
+      });
+
+      const sanitizedCoords = sanitizeGeometryAndRemoveSpurs(combinedCoords);
+      const geomDistanceKm = computeGeometryLengthKm(sanitizedCoords);
+
+      // DE "1 MINUUT" BUG & UNIT CONVERSIE FIX:
+      // Valhalla geeft trip.summary.length in km (bij units: "kilometers") en trip.summary.time in seconden.
+      let rawLengthKm = Number(trip.summary?.length || 0);
+      // Mocht een API meters teruggeven of afwijken van de echte geometrie, corrigeer direct:
+      if (rawLengthKm > geomDistanceKm * 50 && geomDistanceKm > 0.1) {
+        rawLengthKm = rawLengthKm / 1000;
+      }
+      const distanceKm = Math.max(geomDistanceKm, rawLengthKm);
+
+      const rawTimeSec = Number(trip.summary?.time || 0);
+      // Realistische RVV kruissnelheid begrenzing zodat een rit van bijv. 10 km NOOIT 1 minuut kan duren:
+      const maxLegalAvgKmh = mode === 'brom' ? 41.0 : 23.5;
+      const realisticCruiseKmh = mode === 'brom' ? 37.5 : 21.5;
+
+      const minPossibleMinutes = (distanceKm / maxLegalAvgKmh) * 60;
+      const apiMinutes = rawTimeSec / 60;
+      const fallbackMinutes = (distanceKm / realisticCruiseKmh) * 60;
+
+      // Als apiMinutes onrealistisch laag is (< minPossibleMinutes) of 0, gebruik de gecorrigeerde RVV-tijd
+      const finalDurationMin = Math.max(
+        1,
+        Math.ceil(apiMinutes >= minPossibleMinutes ? apiMinutes : Math.max(minPossibleMinutes, fallbackMinutes))
+      );
+
+      // Controleer op verboden snelwegen (G1/G3)
+      const touchesHighway = combinedManeuvers.some((m) =>
+        /\b(A[0-9]{1,2}|Autosnelweg|Autoweg)\b/i.test(m.streetName)
+      );
+
+      // Bereken aantal scherpe bochten en aandeel rechte 60-wegen / polderwegen
+      const turnCount = combinedManeuvers.length;
+      const has60RoadBonus = combinedManeuvers.some((m) =>
+        /(weg|laan|dijk|polder|kanaal|oost|west|noord|zuid|hoofdweg|provinciale)/i.test(m.streetName)
+      );
+
+      // Gewogen Scooter-Kostenfunctie: Score = Reistijd (min) + (Afstand (km) * W_km) + Strafpunten
+      const wKm = mode === 'brom' ? 0.65 : 0.85;
+      const penaltyPoints =
+        (touchesHighway ? 500 : 0) +
+        (turnCount > 18 ? 4 : 0) -
+        (has60RoadBonus ? 3 : 0);
+
+      const weightedScore = finalDurationMin + distanceKm * wKm + penaltyPoints;
+
+      return {
+        coords: sanitizedCoords,
+        maneuvers: combinedManeuvers,
+        distanceKm: Number(distanceKm.toFixed(1)),
+        durationMin: finalDurationMin,
+        touchesHighway,
+        turnCount,
+        weightedScore: Number(weightedScore.toFixed(2)),
+        badgeTitle: 'Route',
+        badgeSubtitle: ''
+      };
+    }
+
+    function deriveRvvNoteForStep(streetName, instruction, mode) {
+      const lower = `${streetName} ${instruction}`.toLowerCase();
+      if (mode === 'brom') {
+        if (lower.includes('fietspad') || lower.includes('g12a') || lower.includes('brug')) {
+          return 'Verplicht fiets-/bromfietspad (Bord G12a • max 30/40 km/u)';
+        }
+        if (lower.includes('weg') || lower.includes('dijk') || lower.includes('kanaal')) {
+          return 'Rijbaan / 60-erftoegangsweg toegestaan (Geel kenteken • max 45 km/u)';
+        }
+        return 'Rijbaan volgen (max 45 km/u • verboden op Bord G11)';
+      } else {
+        return 'Verplicht fietspad Bord G11/G12a (Blauw kenteken • max 25 km/u + helm)';
+      }
+    }
+
+    // Pas de Trade-Off Heuristiek toe (>= 1.5 km besparing per extra minuut reistijd)
+    function applyScooterTradeOffHeuristics(candidates) {
+      // Filter verboden snelwegen en duplicaten (zelfde afstand & tijd)
+      const unique = [];
+      candidates
+        .filter((r) => r && !r.touchesHighway && r.coords.length >= 2)
+        .forEach((route) => {
+          const isDuplicate = unique.some(
+            (u) => Math.abs(u.distanceKm - route.distanceKm) < 0.25 && Math.abs(u.durationMin - route.durationMin) <= 1
+          );
+          if (!isDuplicate) unique.push(route);
+        });
+
+      if (unique.length === 0) return [];
+
+      // Sorteer eerst op snelste tijd om Route A (Snelste Tijd) te vinden
+      const byFastest = [...unique].sort((a, b) => a.durationMin - b.durationMin || a.distanceKm - b.distanceKm);
+      const fastestRoute = byFastest[0];
+
+      // Zoek of er een Route B is die korter is en voldoet aan:
+      // (Bespaarde km / Extra minuten) >= 1.5 OF (> 1.5 km korter en max 2 min langzamer)
+      let recommendedRoute = fastestRoute;
+      let tradeOffTriggered = false;
+
+      unique.forEach((candidate) => {
+        if (candidate === fastestRoute) return;
+        const savedKm = fastestRoute.distanceKm - candidate.distanceKm;
+        const extraMin = Math.max(0.5, candidate.durationMin - fastestRoute.durationMin);
+
+        if (
+          (savedKm >= 1.5 && extraMin <= 2) ||
+          (savedKm > 0.8 && savedKm / extraMin >= 1.5) ||
+          candidate.weightedScore < recommendedRoute.weightedScore - 0.4
+        ) {
+          recommendedRoute = candidate;
+          tradeOffTriggered = true;
+        }
+      });
+
+      // Orden de uiteindelijke lijst (max 3): [0] = Beste Balans (Aanbevolen), daarna overige
+      const ordered = [recommendedRoute, ...unique.filter((r) => r !== recommendedRoute)].slice(0, 3);
+
+      ordered.forEach((r, idx) => {
+        if (idx === 0) {
+          r.badgeTitle = 'Beste Balans';
+          r.badgeSubtitle = tradeOffTriggered
+            ? `Aanbevolen • ${(fastestRoute.distanceKm - r.distanceKm).toFixed(1)} km korter via 60-weg`
+            : 'Aanbevolen • Optimale RVV-route';
+        } else if (r === fastestRoute) {
+          r.badgeTitle = 'Snelste Tijd';
+          r.badgeSubtitle = 'Kortste reistijd';
+        } else {
+          r.badgeTitle = 'Polder / Fietspad';
+          r.badgeSubtitle = 'Alternatief traject';
+        }
+      });
+
+      const tradeBadge = document.getElementById('tradeOffBadge');
+      if (tradeBadge) {
+        if (tradeOffTriggered) {
+          tradeBadge.classList.remove('hidden');
+          tradeBadge.textContent = '✓ Trade-Off 60-Weg Actief';
+        } else {
+          tradeBadge.classList.add('hidden');
+        }
+      }
+
+      return ordered;
+    }
+
+    async function fetchValhallaRoutes(pointsList, mode) {
+      const endpoint = 'https://valhalla1.openstreetmap.de/route';
+      const primaryPayload = buildValhallaPayload(pointsList, mode, 'standard');
+      const polderPayload = buildValhallaPayload(pointsList, mode, 'polder60');
+
+      const requests = [
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(primaryPayload)
+        }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))),
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(polderPayload)
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
+      ];
+
+      const [primaryData, polderData] = await Promise.all(requests);
+      const parsedCandidates = [];
+
+      if (primaryData && primaryData.trip) {
+        const mainTrip = parseValhallaTrip(primaryData.trip, mode);
+        if (mainTrip) parsedCandidates.push(mainTrip);
+
+        if (Array.isArray(primaryData.alternates)) {
+          primaryData.alternates.forEach((alt) => {
+            if (alt && alt.trip) {
+              const parsedAlt = parseValhallaTrip(alt.trip, mode);
+              if (parsedAlt) parsedCandidates.push(parsedAlt);
+            }
+          });
+        }
+      }
+
+      if (polderData && polderData.trip) {
+        const polderTrip = parseValhallaTrip(polderData.trip, mode);
+        if (polderTrip) parsedCandidates.push(polderTrip);
+      }
+
+      return applyScooterTradeOffHeuristics(parsedCandidates);
+    }
+
+    // Hoofdfunctie: Bereken en teken de scooterroute
+    async function calculateAndRenderRoute(silent = false) {
+      const pointsList = [
+        AppState.origin,
+        ...AppState.waypoints.filter((w) => w && typeof w.lat === 'number' && typeof w.lon === 'number'),
+        AppState.destination
+      ];
+
+      if (pointsList.length < 2) return;
+
+      const statusPill = document.getElementById('engineStatusPill');
+      if (statusPill) {
+        statusPill.textContent = 'Valhalla berekent...';
+      }
+
+      try {
+        const routes = await fetchValhallaRoutes(pointsList, AppState.vehicleMode);
+        if (!routes || routes.length === 0) {
+          showToast('Kan geen verharde route vinden voor dit traject.', 'error');
+          if (statusPill) statusPill.textContent = 'Geen route gevonden';
+          return;
+        }
+
+        AppState.routes = routes;
+        AppState.selectedRouteIndex = 0;
+
+        if (statusPill) {
+          statusPill.textContent =
+            AppState.vehicleMode === 'brom'
+              ? `Valhalla Scooter (${routes.length} routes)`
+              : `Valhalla Snorfiets (${routes.length} routes)`;
+        }
+
+        drawAllRoutesOnMap( !silent && !AppState.isNavigating );
+        renderRouteAlternativesUI();
+        updateRouteSummaryHeader();
+        scanRoadworksAndSigns(false);
+      } catch (err) {
+        // NOOIT een rechte hemelsbrede lijn door weilanden trekken!
+        showToast('Kan geen verharde route vinden (Valhalla API tijdelijk niet bereikbaar).', 'error');
+        if (statusPill) statusPill.textContent = 'Routeringsfout';
+      }
+    }
+
+    /*************************************************************************
+     * TEKEN ALLE GELDIGE ALTERNATIEVEN & MARKERS OP DE 3D-KAART
+     *************************************************************************/
+    function drawAllRoutesOnMap(fitBounds = true) {
+      if (!map || !map.isStyleLoaded()) return;
+
+      // Wis oude route-badges op de kaart
+      routeBadgeMarkers.forEach((m) => m.remove());
+      routeBadgeMarkers = [];
+
+      // Update de 3 alternatieve lagen
+      for (let i = 0; i < 3; i++) {
+        const src = map.getSource(`route-source-${i}`);
+        const route = AppState.routes[i];
+        if (src) {
+          if (route && i !== AppState.selectedRouteIndex) {
+            src.setData({
+              type: 'FeatureCollection',
+              features: [
+                {
+                  type: 'Feature',
+                  properties: { routeIndex: i },
+                  geometry: {
+                    type: 'LineString',
+                    coordinates: route.coords
+                  }
+                }
+              ]
+            });
+          } else {
+            src.setData({ type: 'FeatureCollection', features: [] });
+          }
+        }
+      }
+
+      // Zet de geselecteerde route in de dikke Emerald-groene laag (#059669 met witte omlijning)
+      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
+      const activeSrc = map.getSource('active-route-source');
+      if (activeSrc && activeRoute) {
+        activeSrc.setData({
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: { routeIndex: AppState.selectedRouteIndex },
+              geometry: {
+                type: 'LineString',
+                coordinates: activeRoute.coords
+              }
+            }
+          ]
+        });
+      }
+
+      // Plaats klikbare tijd/afstand-badges op elke berekende route
+      AppState.routes.forEach((route, idx) => {
+        if (!route.coords || route.coords.length < 3) return;
+        // Kies een onderscheidend punt op de route (1/3, 1/2, 2/3) zodat badges niet overlappen
+        const fraction = idx === 0 ? 0.5 : idx === 1 ? 0.35 : 0.65;
+        const ptIdx = Math.floor(route.coords.length * fraction);
+        const coord = route.coords[ptIdx];
+
+        const badgeEl = document.createElement('div');
+        badgeEl.className = `route-map-badge ${idx === AppState.selectedRouteIndex ? 'active' : ''}`;
+        badgeEl.innerHTML = `${route.durationMin} min • ${route.distanceKm} km`;
+        badgeEl.onclick = (ev) => {
+          ev.stopPropagation();
+          selectRouteAlternative(idx);
+        };
+
+        const marker = new maplibregl.Marker({ element: badgeEl, anchor: 'center' })
+          .setLngLat(coord)
+          .addTo(map);
+        routeBadgeMarkers.push(marker);
+      });
+
+      // Plaats markers voor Vertrek [A], Tussenstops [1..N] en Bestemming [B]
+      waypointMarkers.forEach((m) => m.remove());
+      waypointMarkers = [];
+
+      const allStops = [
+        { ...AppState.origin, badge: 'A', color: '#059669' },
+        ...AppState.waypoints.map((w, i) => ({ ...w, badge: String(i + 1), color: '#0284c7' })),
+        { ...AppState.destination, badge: 'B', color: '#f59e0b' }
+      ];
+
+      allStops.forEach((stop) => {
+        if (typeof stop.lat !== 'number' || typeof stop.lon !== 'number') return;
+        const el = document.createElement('div');
+        el.className = 'w-8 h-8 rounded-full border-2 border-white shadow-xl flex items-center justify-center font-black text-xs text-white';
+        el.style.backgroundColor = stop.color;
+        el.textContent = stop.badge;
+
+        const m = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([stop.lon, stop.lat])
+          .addTo(map);
+        waypointMarkers.push(m);
+      });
+
+      if (fitBounds && activeRoute && activeRoute.coords.length >= 2) {
+        const bounds = new maplibregl.LngLatBounds();
+        activeRoute.coords.forEach((c) => bounds.extend(c));
+        map.fitBounds(bounds, {
+          padding: { top: 110, bottom: 320, left: 50, right: 70 },
+          maxZoom: 15,
+          duration: 900
+        });
+      }
+    }
+
+    function selectRouteAlternative(index) {
+      if (!AppState.routes[index]) return;
+      AppState.selectedRouteIndex = index;
+      AppState.activeManeuverIndex = 0;
+      drawAllRoutesOnMap(false);
+      renderRouteAlternativesUI();
+      updateRouteSummaryHeader();
+      if (AppState.isNavigating) {
+        updateCockpitBannerForStep(0);
+      }
+    }
+
+    function cycleAlternativeRoute() {
+      if (!AppState.routes || AppState.routes.length <= 1) return;
+      const next = (AppState.selectedRouteIndex + 1) % AppState.routes.length;
+      selectRouteAlternative(next);
+      showToast(`Route gewisseld naar: ${AppState.routes[next].badgeTitle}`);
+    }
+
+    function renderRouteAlternativesUI() {
+      const container = document.getElementById('routeAlternativesContainer');
+      const cockpitAltBtn = document.getElementById('cockpitAltRouteBtn');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (cockpitAltBtn) {
+        cockpitAltBtn.textContent = `${AppState.selectedRouteIndex + 1}/${Math.max(1, AppState.routes.length)}`;
+      }
+
+      AppState.routes.forEach((route, idx) => {
+        const isActive = idx === AppState.selectedRouteIndex;
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.onclick = () => selectRouteAlternative(idx);
+        card.className = `touch-btn text-left p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+          isActive
+            ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-lg'
+            : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-600'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-1 w-full">
+            <span class="text-xs font-extrabold ${isActive ? 'text-emerald-300' : 'text-slate-300'}">${route.badgeTitle}</span>
+            ${isActive ? '<span class="w-2 h-2 rounded-full bg-emerald-400"></span>' : ''}
+          </div>
+          <div class="text-base font-black text-white mt-0.5">${route.durationMin} min <span class="text-xs font-bold text-slate-300">• ${route.distanceKm} km</span></div>
+          <div class="text-[10px] text-slate-400 truncate mt-0.5">${route.badgeSubtitle}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function updateRouteSummaryHeader() {
+      const active = AppState.routes[AppState.selectedRouteIndex];
+      if (!active) return;
+
+      const arrivalDate = new Date(Date.now() + active.durationMin * 60000);
+      const arrivalStr = arrivalDate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+
+      document.getElementById('summaryDuration').textContent = `${active.durationMin} min`;
+      document.getElementById('summaryDistance').textContent = `${active.distanceKm} km`;
+      document.getElementById('summaryArrival').textContent = arrivalStr;
+
+      // Update ook direct de Cockpit HUD waarden
+      document.getElementById('hudRemainingMin').textContent = `${active.durationMin} min`;
+      document.getElementById('hudRemainingKm').textContent = `${active.distanceKm} km`;
+      document.getElementById('hudArrivalTime').textContent = arrivalStr;
+    }
+
+    /*************************************************************************
+     * PDOK LOCATIESERVER v3.1 + PHOTON OSM POI ADRESZOEKER
+     *************************************************************************/
+    function initInputsFromState() {
+      const origEl = document.getElementById('originInput');
+      const destEl = document.getElementById('destinationInput');
+      if (origEl) origEl.value = AppState.origin.label || '';
+      if (destEl) destEl.value = AppState.destination.label || '';
+    }
+
+    function initSearchListeners() {
+      const globalInput = document.getElementById('globalSearchInput');
+      const clearGlobalBtn = document.getElementById('clearGlobalSearchBtn');
+      const origInput = document.getElementById('originInput');
+      const destInput = document.getElementById('destinationInput');
+
+      if (globalInput) {
+        globalInput.addEventListener('focus', () => {
+          activeSearchTarget = 'global';
+        });
+        globalInput.addEventListener('input', (e) => {
+          const val = e.target.value.trim();
+          clearGlobalBtn.classList.toggle('hidden', val.length === 0);
+          triggerCombinedAddressSearch(val, 'global');
+        });
+      }
+
+      if (clearGlobalBtn) {
+        clearGlobalBtn.addEventListener('click', () => {
+          globalInput.value = '';
+          clearGlobalBtn.classList.add('hidden');
+          hideSearchDropdown();
+        });
+      }
+
+      if (origInput) {
+        origInput.addEventListener('focus', () => {
+          activeSearchTarget = 'origin';
+        });
+        origInput.addEventListener('input', (e) => {
+          triggerCombinedAddressSearch(e.target.value.trim(), 'origin');
+        });
+      }
+
+      if (destInput) {
+        destInput.addEventListener('focus', () => {
+          activeSearchTarget = 'destination';
+        });
+        destInput.addEventListener('input', (e) => {
+          triggerCombinedAddressSearch(e.target.value.trim(), 'destination');
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('searchResultsDropdown');
+        if (dropdown && !dropdown.contains(e.target) && e.target.tagName !== 'INPUT') {
+          hideSearchDropdown();
+        }
+      });
+    }
+
+    function triggerCombinedAddressSearch(query, targetKey) {
+      activeSearchTarget = targetKey;
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      if (!query || query.length < 2) {
+        hideSearchDropdown();
+        return;
+      }
+      searchDebounceTimer = setTimeout(() => {
+        executePdokAndPhotonSearch(query);
+      }, 220);
+    }
+
+    async function executePdokAndPhotonSearch(query) {
+      const dropdown = document.getElementById('searchResultsDropdown');
+      if (!dropdown) return;
+
+      try {
+        const pdokUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(query)}&rows=6`;
+        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lang=nl&limit=4&bbox=3.3,50.7,7.3,53.6`;
+
+        const [pdokRes, photonRes] = await Promise.all([
+          fetch(pdokUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(photonUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        ]);
+
+        const items = [];
+
+        // 1. Officiële Nederlandse BAG-adressen via PDOK Locatieserver v3.1
+        const pdokDocs = pdokRes?.response?.docs || [];
+        pdokDocs.forEach((doc) => {
+          items.push({
+            source: 'PDOK BAG',
+            label: doc.weergavenaam,
+            type: doc.type || 'adres',
+            pdokId: doc.id
+          });
+        });
+
+        // 2. Scholen, campussen, tankstations & POI's via Photon OSM
+        const photonFeatures = photonRes?.features || [];
+        photonFeatures.forEach((f) => {
+          const p = f.properties || {};
+          const coords = f.geometry?.coordinates;
+          if (!coords) return;
+          const nameParts = [p.name, p.street, p.housenumber, p.city || p.town || p.village].filter(Boolean);
+          if (nameParts.length === 0) return;
+          const label = nameParts.join(', ');
+          if (!items.some((i) => i.label.toLowerCase() === label.toLowerCase())) {
+            items.push({
+              source: 'OSM POI',
+              label,
+              type: p.osm_value || 'locatie',
+              lat: coords[1],
+              lon: coords[0]
+            });
+          }
+        });
+
+        renderSearchDropdownItems(items);
+      } catch (err) {
+        hideSearchDropdown();
+      }
+    }
+
+    function renderSearchDropdownItems(items) {
+      const dropdown = document.getElementById('searchResultsDropdown');
+      if (!dropdown) return;
+
+      if (!items || items.length === 0) {
+        dropdown.classList.add('hidden');
+        return;
+      }
+
+      dropdown.innerHTML = '';
+      items.forEach((item) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left px-4 py-3 hover:bg-slate-800/90 flex items-center justify-between gap-2 transition';
+        btn.innerHTML = `
+          <div class="min-w-0">
+            <div class="text-sm font-bold text-white truncate">${item.label}</div>
+            <div class="text-[11px] text-slate-400 uppercase font-semibold">${item.type}</div>
+          </div>
+          <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold shrink-0 ${
+            item.source === 'PDOK BAG' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-sky-500/20 text-sky-300'
+          }">${item.source}</span>
+        `;
+        btn.onclick = () => handleSelectSearchResult(item);
+        dropdown.appendChild(btn);
+      });
+
+      dropdown.classList.remove('hidden');
+    }
+
+    async function handleSelectSearchResult(item) {
+      hideSearchDropdown();
+      let lat = item.lat;
+      let lon = item.lon;
+
+      // Als het een PDOK suggestie is, haal de exacte BAG-coördinaten op via PDOK /lookup
+      if (item.pdokId && (typeof lat !== 'number' || typeof lon !== 'number')) {
+        try {
+          const lookupUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${encodeURIComponent(item.pdokId)}`;
+          const res = await fetch(lookupUrl).then((r) => r.json());
+          const doc = res?.response?.docs?.[0];
+          if (doc && doc.centroide_ll) {
+            // Formaat: POINT(lon lat)
+            const match = doc.centroide_ll.match(/POINT\(([0-9.-]+)\s+([0-9.-]+)\)/);
+            if (match) {
+              lon = parseFloat(match[1]);
+              lat = parseFloat(match[2]);
+            }
+          }
+        } catch (err) {
+          showToast('Kon coördinaten niet ophalen uit PDOK.', 'error');
+          return;
+        }
+      }
+
+      if (typeof lat !== 'number' || typeof lon !== 'number') return;
+
+      const selectedPoint = { label: item.label, lat, lon };
+
+      if (activeSearchTarget === 'origin') {
+        AppState.origin = selectedPoint;
+        SafeStorage.set('so_origin', selectedPoint);
+        document.getElementById('originInput').value = item.label;
+      } else if (activeSearchTarget.startsWith('waypoint-')) {
+        const idx = parseInt(activeSearchTarget.split('-')[1], 10);
+        if (AppState.waypoints[idx]) {
+          AppState.waypoints[idx] = selectedPoint;
+          SafeStorage.set('so_waypoints', AppState.waypoints);
+          renderWaypointsList();
+        }
+      } else {
+        // 'global' of 'destination' zet de bestemming
+        AppState.destination = selectedPoint;
+        SafeStorage.set('so_destination', selectedPoint);
+        document.getElementById('destinationInput').value = item.label;
+        document.getElementById('globalSearchInput').value = item.label;
+      }
+
+      calculateAndRenderRoute();
+    }
+
+    function hideSearchDropdown() {
+      const dropdown = document.getElementById('searchResultsDropdown');
+      if (dropdown) dropdown.classList.add('hidden');
+    }
+
+    /*************************************************************************
+     * MULTI-STOP LOGICA & TSP ROUTE-OPTIMALISATIE
+     *************************************************************************/
+    function renderWaypointsList() {
+      const container = document.getElementById('waypointsContainer');
+      const tspBtn = document.getElementById('optimizeTspBtn');
+      if (!container) return;
+      container.innerHTML = '';
+
+      AppState.waypoints.forEach((wp, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-1.5';
+        row.innerHTML = `
+          <span class="w-7 h-7 rounded-lg bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0">${idx + 1}</span>
+          <input
+            type="text"
+            value="${wp.label || ''}"
+            placeholder="Tussenstop ${idx + 1}..."
+            class="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-sky-400"
+          />
+          <button type="button" class="touch-btn px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold" title="Omhoog">↑</button>
+          <button type="button" class="touch-btn px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold" title="Omlaag">↓</button>
+          <button type="button" class="touch-btn px-2 py-1 rounded-lg bg-red-950/80 text-red-300 text-xs font-bold" title="Verwijder tussenstop">✕</button>
+        `;
+
+        const inputEl = row.querySelector('input');
+        inputEl.addEventListener('focus', () => {
+          activeSearchTarget = `waypoint-${idx}`;
+        });
+        inputEl.addEventListener('input', (e) => {
+          triggerCombinedAddressSearch(e.target.value.trim(), `waypoint-${idx}`);
+        });
+
+        const [upBtn, downBtn, delBtn] = row.querySelectorAll('button');
+        upBtn.onclick = () => moveWaypoint(idx, -1);
+        downBtn.onclick = () => moveWaypoint(idx, 1);
+        delBtn.onclick = () => removeWaypoint(idx);
+
+        container.appendChild(row);
+      });
+
+      if (tspBtn) {
+        tspBtn.classList.toggle('hidden', AppState.waypoints.length < 2);
+      }
+    }
+
+    function addIntermediateWaypoint() {
+      // Voeg standaard een tussenstop toe halverwege of leeg
+      const midLat = (AppState.origin.lat + AppState.destination.lat) / 2;
+      const midLon = (AppState.origin.lon + AppState.destination.lon) / 2;
+      AppState.waypoints.push({
+        label: 'Kies tussenstop...',
+        lat: midLat,
+        lon: midLon
+      });
+      SafeStorage.set('so_waypoints', AppState.waypoints);
+      renderWaypointsList();
+    }
+
+    function moveWaypoint(index, direction) {
+      const target = index + direction;
+      if (target < 0 || target >= AppState.waypoints.length) return;
+      const temp = AppState.waypoints[index];
+      AppState.waypoints[index] = AppState.waypoints[target];
+      AppState.waypoints[target] = temp;
+      SafeStorage.set('so_waypoints', AppState.waypoints);
+      renderWaypointsList();
+      calculateAndRenderRoute();
+    }
+
+    function removeWaypoint(index) {
+      AppState.waypoints.splice(index, 1);
+      SafeStorage.set('so_waypoints', AppState.waypoints);
+      renderWaypointsList();
+      calculateAndRenderRoute();
+    }
+
+    function swapOriginAndDestination() {
+      const temp = AppState.origin;
+      AppState.origin = AppState.destination;
+      AppState.destination = temp;
+      SafeStorage.set('so_origin', AppState.origin);
+      SafeStorage.set('so_destination', AppState.destination);
+      initInputsFromState();
+      calculateAndRenderRoute();
+    }
+
+    // Nearest-Neighbor + 2-Opt TSP Optimalisatie voor tussenstops
+    function optimizeWaypointsTSP() {
+      if (AppState.waypoints.length < 2) return;
+      const remaining = [...AppState.waypoints];
+      const ordered = [];
+      let current = AppState.origin;
+
+      while (remaining.length > 0) {
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        remaining.forEach((wp, i) => {
+          const d = haversineKm(current.lat, current.lon, wp.lat, wp.lon);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = i;
+          }
+        });
+        current = remaining.splice(bestIdx, 1)[0];
+        ordered.push(current);
+      }
+
+      AppState.waypoints = ordered;
+      SafeStorage.set('so_waypoints', AppState.waypoints);
+      renderWaypointsList();
+      calculateAndRenderRoute();
+      showToast('Volgorde van tussenstops geoptimaliseerd (TSP)! ✓');
+    }
+
+    /*************************************************************************
+     * LIVE VERKEERSBORDEN (RVV G11, G12a, C13, 60) & WEGWERKZAAMHEDEN (OVERPASS)
+     *************************************************************************/
+    function toggleRvvSignsLayer() {
+      AppState.signsLayerVisible = !AppState.signsLayerVisible;
+      document.getElementById('toggleSignsLabel').textContent = `Borden: ${AppState.signsLayerVisible ? 'Aan' : 'Uit'}`;
+      rvvSignMarkers.forEach((m) => {
+        m.getElement().style.display = AppState.signsLayerVisible ? 'flex' : 'none';
+      });
+    }
+
+    async function scanRoadworksAndSigns(notifyUser = false) {
+      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
+      if (!activeRoute || !activeRoute.coords || activeRoute.coords.length < 2) return;
+
+      //Wis bestaande borden/werkzaamheden markers
+      rvvSignMarkers.forEach((m) => m.remove());
+      rvvSignMarkers = [];
+
+      // Plaats altijd het bekende C13 waarschuwingsbord op De Blauwe Roos (Winschoten) indien in de regio
+      const StaticRegionalSigns = [
+        {
+          lat: 53.1621,
+          lon: 7.0508,
+          code: 'C13',
+          title: 'Bord C13 — De Blauwe Roos (N367)',
+          desc: 'Verboden voor bromfietsen, snorfietsen en fietsen. Route leidt veilig om via verharde nevenwegen.',
+          bg: '#dc2626'
+        },
+        {
+          lat: 53.1538,
+          lon: 7.0419,
+          code: 'G12a',
+          title: 'Bord G12a — Verplicht Bromfietspad',
+          desc: 'Toegestaan voor Bromfiets (max 40 km/u buiten kom, 30 km/u binnen kom) & Snorfiets (25 km/u).',
+          bg: '#0284c7'
+        },
+        {
+          lat: 53.1782,
+          lon: 7.0812,
+          code: '60',
+          title: '60 km/u Erftoegangsweg',
+          desc: 'Bromfiets (45 km/u) rijdt hier legaal op de rijbaan.',
+          bg: '#059669'
+        }
+      ];
+
+      StaticRegionalSigns.forEach((s) => addSignMarkerToMap(s));
+
+      // Bereken bounding box van de route voor live Overpass scan
+      let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+      activeRoute.coords.forEach(([lon, lat]) => {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+      });
+
+      // Beperk bbox grootte voor snelle Overpass respons
+      if (maxLat - minLat > 0.35 || maxLon - minLon > 0.35) {
+        if (notifyUser) showToast('Route gescand op regionale C13/G12a-borden.');
+        return;
+      }
+
+      try {
+        const query = `
+          [out:json][timeout:8];
+          (
+            way["highway"="construction"](${minLat},${minLon},${maxLat},${maxLon});
+            node["traffic_sign"~"G11|G12a|C13"](${minLat},${minLon},${maxLat},${maxLon});
+          );
+          out center 18;
+        `;
+        const res = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: query
+        }).then((r) => (r.ok ? r.json() : null));
+
+        let worksCount = 0;
+        (res?.elements || []).forEach((el) => {
+          const lat = el.lat || el.center?.lat;
+          const lon = el.lon || el.center?.lon;
+          if (!lat || !lon) return;
+
+          if (el.tags?.highway === 'construction') {
+            worksCount++;
+            addSignMarkerToMap({
+              lat,
+              lon,
+              code: '🚧',
+              title: `Wegwerkzaamheden (${el.tags.name || 'OSM Actueel'})`,
+              desc: 'Let op: wegvak in uitvoering of afgesloten.',
+              bg: '#d97706'
+            });
+          } else if (el.tags?.traffic_sign) {
+            const sign = el.tags.traffic_sign;
+            addSignMarkerToMap({
+              lat,
+              lon,
+              code: sign.includes('G12a') ? 'G12a' : sign.includes('G11') ? 'G11' : 'C13',
+              title: `Verkeersbord ${sign}`,
+              desc: sign.includes('G11')
+                ? 'Verplicht fietspad (Verboden voor Brom 45, toegestaan voor Snor 25)'
+                : 'Verplicht fiets-/bromfietspad (G12a)',
+              bg: sign.includes('G11') ? '#e11d48' : '#0284c7'
+            });
+          }
+        });
+
+        document.getElementById('roadworksBadgeText').textContent = `Werkzaamheden (${worksCount})`;
+        if (notifyUser) {
+          showToast(`Overpass scan voltooid: ${worksCount} werkzaamheden en RVV-borden geladen.`);
+        }
+      } catch (err) {
+        if (notifyUser) showToast('Kon live Overpass niet bereiken, regionale RVV-borden zijn wel actief.', 'warn');
+      }
+    }
+
+    function addSignMarkerToMap(signObj) {
+      if (!map) return;
+      const el = document.createElement('div');
+      el.className = 'px-2 py-1 rounded-full border-2 border-white text-[10px] font-black text-white shadow-lg cursor-pointer items-center justify-center';
+      el.style.backgroundColor = signObj.bg;
+      el.style.display = AppState.signsLayerVisible ? 'flex' : 'none';
+      el.textContent = signObj.code;
+      el.onclick = (e) => {
+        e.stopPropagation();
+        showToast(`${signObj.title}: ${signObj.desc}`);
+      };
+
+      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([signObj.lon, signObj.lat])
+        .addTo(map);
+      rvvSignMarkers.push(marker);
+    }
+
+    /*************************************************************************
+     * 3D NAVIGATIE COCKPIT, SPRAAKNAVIGATIE (NL-NL) & AUDIO SYNTH CHIME
+     *************************************************************************/
+    function playTurnChime() {
+      if (AppState.voiceMuted) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.16); // A5
+        gain.gain.setValueAtTime(0.14, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.34);
+      } catch (err) {
+        // AudioContext vereist gebruikersinteractie
+      }
+    }
+
+    function speakDutchInstruction(text) {
+      if (AppState.voiceMuted || !('speechSynthesis' in window)) return;
+      try {
+        playTurnChime();
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'nl-NL';
+        utter.rate = 1.02;
+        window.speechSynthesis.speak(utter);
+      } catch (err) {
+        // Negeer speech fouten
+      }
+    }
+
+    function toggleVoiceMute() {
+      AppState.voiceMuted = !AppState.voiceMuted;
+      const btn = document.getElementById('cockpitVoiceBtn');
+      if (btn) btn.textContent = AppState.voiceMuted ? '🔇' : '🔊';
+      showToast(AppState.voiceMuted ? 'Spraaknavigatie gedempt' : 'Spraaknavigatie ingeschakeld');
+    }
+
+    async function requestWakeLock() {
+      const dot = document.getElementById('wakeLockDot');
+      const txt = document.getElementById('wakeLockText');
+      try {
+        if ('wakeLock' in navigator) {
+          AppState.wakeLockSentinel = await navigator.wakeLock.request('screen');
+          if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+          if (txt) txt.textContent = 'WakeLock Actief';
+          showToast('Scherm blijft nu altijd aan op je scooterstuur! 🔆');
+        } else {
+          showToast('WakeLock API wordt niet ondersteund door deze browser.', 'warn');
+        }
+      } catch (err) {
+        if (dot) dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        if (txt) txt.textContent = 'Scherm Aan';
+      }
+    }
+
+    function startNavigationCockpit() {
+      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
+      if (!activeRoute || !activeRoute.coords || activeRoute.coords.length < 2) {
+        showToast('Bereken eerst een geldige route voordat je start.', 'warn');
+        return;
+      }
+
+      AppState.isNavigating = true;
+      AppState.gpsLocked = true;
+      AppState.activeManeuverIndex = 0;
+      AppState.spokenAnnouncements = {};
+
+      // Wissel UI naar 3D Cockpit modus
+      document.getElementById('planningHeader').classList.add('hidden');
+      document.getElementById('bottomSheet').classList.add('hidden');
+      document.getElementById('cockpitTopBanner').classList.remove('hidden');
+      document.getElementById('cockpitBottomHud').classList.remove('hidden');
+
+      // Activeer WakeLock
+      requestWakeLock();
+
+      // Kantel kaart naar 3D (pitch: 60) en zoom in op het vertrekpunt
+      const startCoord = activeRoute.coords[0];
+      const nextCoord = activeRoute.coords[Math.min(1, activeRoute.coords.length - 1)];
+      const initialBearing = computeBearing(startCoord[1], startCoord[0], nextCoord[1], nextCoord[0]);
+
+      if (map) {
+        map.easeTo({
+          center: startCoord,
+          zoom: 17,
+          pitch: 60,
+          bearing: initialBearing,
+          duration: 1200
+        });
+      }
+
+      placeOrUpdateUserPuck(startCoord[1], startCoord[0], initialBearing);
+      updateCockpitBannerForStep(0);
+
+      const firstStep = activeRoute.maneuvers[0];
+      if (firstStep) {
+        speakDutchInstruction(
+          `Navigatie gestart voor ${AppState.vehicleMode === 'brom' ? 'bromfiets vijfenvijftig' : 'snorfiets vijfentwintig'}. ${firstStep.instruction}`
+        );
+      }
+    }
+
+    function stopNavigationCockpit() {
+      AppState.isNavigating = false;
+      stopSimulationDemo();
+
+      document.getElementById('cockpitTopBanner').classList.add('hidden');
+      document.getElementById('cockpitBottomHud').classList.add('hidden');
+      document.getElementById('planningHeader').classList.remove('hidden');
+      document.getElementById('bottomSheet').classList.remove('hidden');
+
+      if (map) {
+        map.easeTo({ pitch: 35, bearing: 0, zoom: 13, duration: 800 });
+        drawAllRoutesOnMap(true);
+      }
+    }
+
+    function updateCockpitBannerForStep(stepIdx) {
+      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
+      if (!activeRoute || !activeRoute.maneuvers.length) return;
+
+      const step = activeRoute.maneuvers[Math.min(stepIdx, activeRoute.maneuvers.length - 1)];
+      const distMeters = Math.max(10, Math.round((step.lengthKm || 0.25) * 1000));
+
+      document.getElementById('cockpitTurnDistance').textContent =
+        distMeters >= 1000 ? `Over ${(distMeters / 1000).toFixed(1)} km` : `Over ${distMeters} m`;
+      document.getElementById('cockpitStreetName').textContent = step.streetName || step.instruction;
+      document.getElementById('cockpitRvvAdvice').innerHTML = `<span>🛵</span><span>${step.rvvNote}</span>`;
+
+      // Update dynamische SVG-richtingspijl
+      const svgEl = document.getElementById('cockpitTurnSvg');
+      const instrLower = (step.instruction || '').toLowerCase();
+      if (instrLower.includes('links')) {
+        svgEl.innerHTML = '<path d="M15 19V9a4 4 0 00-4-4H5m0 0l4-4M5 5l4 4"/>';
+      } else if (instrLower.includes('rechts')) {
+        svgEl.innerHTML = '<path d="M9 19V9a4 4 0 014-4h6m0 0l-4-4m4 4l-4 4"/>';
+      } else if (instrLower.includes('rotonde') || step.roundaboutExit) {
+        svgEl.innerHTML = '<circle cx="12" cy="12" r="6"/><path d="M12 18v4m6-10h4l-3-3"/>';
+      } else {
+        svgEl.innerHTML = '<path d="M12 19V5M5 12l7-7 7 7"/>';
+      }
+    }
+
+    /*************************************************************************
+     * LIVE GPS TRACKING, OFF-ROUTE HERBEREKENING (>30M) & DEMO SIMULATIE
+     *************************************************************************/
+    function startBackgroundGpsTracker() {
+      if (!('geolocation' in navigator)) return;
+      try {
+        AppState.watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            handleLiveGpsPosition(pos.coords);
+          },
+          () => {
+            // Geen live GPS-toestemming of op desktop; gebruik standaard locatie
+          },
+          { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+        );
+      } catch (err) {
+        // Veilig afgevangen
+      }
+    }
+
+    function handleLiveGpsPosition(coords) {
+      const lat = coords.latitude;
+      const lon = coords.longitude;
+      const speedMs = coords.speed || 0;
+      const speedKmh = Math.max(0, Math.round(speedMs * 3.6));
+      const heading = coords.heading || AppState.currentHeading || 0;
+
+      // Kilometerteller bijwerken (met snelheidsdrempel > 3 km/u om GPS-drift bij stilstand te negeren)
+      if (AppState.lastGpsPos && speedKmh >= 3) {
+        const deltaKm = haversineKm(AppState.lastGpsPos.lat, AppState.lastGpsPos.lon, lat, lon);
+        if (deltaKm > 0.002 && deltaKm < 1.0) {
+          addDistanceToOdometer(deltaKm);
+        }
+      }
+
+      AppState.lastGpsPos = { lat, lon };
+      updateSpeedometerUI(speedKmh);
+      placeOrUpdateUserPuck(lat, lon, heading);
+
+      if (AppState.isNavigating) {
+        processNavigationProgress(lat, lon, heading);
+      }
+    }
+
+    function updateSpeedometerUI(speedKmh) {
+      AppState.currentSpeedKmh = speedKmh;
+      const valEl = document.getElementById('liveSpeedValue');
+      const badgeEl = document.getElementById('speedometerBadge');
+      if (valEl) valEl.textContent = String(speedKmh);
+
+      const limit = AppState.vehicleMode === 'brom' ? 45 : 25;
+      if (badgeEl) {
+        if (speedKmh > limit) {
+          badgeEl.classList.add('overspeed-glow');
+        } else {
+          badgeEl.classList.remove('overspeed-glow');
+        }
+      }
+    }
+
+    function placeOrUpdateUserPuck(lat, lon, bearing = 0) {
+      if (!map) return;
+      if (!userLocationMarker) {
+        const el = document.createElement('div');
+        el.className = 'relative w-7 h-7 flex items-center justify-center';
+        el.innerHTML = `
+          <div class="gps-puck-ring"></div>
+          <div class="w-6 h-6 rounded-full bg-emerald-600 border-2 border-white shadow-xl flex items-center justify-center text-white text-xs font-black">▲</div>
+        `;
+        userLocationMarker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' })
+          .setLngLat([lon, lat])
+          .addTo(map);
+      } else {
+        userLocationMarker.setLngLat([lon, lat]);
+        userLocationMarker.setRotation(bearing);
+      }
+    }
+
+    function processNavigationProgress(lat, lon, bearing) {
+      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
+      if (!activeRoute || !activeRoute.coords.length) return;
+
+      // 1. Volg positie met 3D-camera als GPS Lock aan staat
+      if (AppState.gpsLocked && map) {
+        map.easeTo({
+          center: [lon, lat],
+          bearing: bearing,
+          pitch: AppState.is3D ? 60 : 0,
+          zoom: 17.2,
+          duration: 600
+        });
+      }
+
+      // 2. Controleer afstand tot de route (Off-Route Detection > 30 meter)
+      let minDistMeters = Infinity;
+      activeRoute.coords.forEach(([rLon, rLat]) => {
+        const dMeters = haversineKm(lat, lon, rLat, rLon) * 1000;
+        if (dMeters < minDistMeters) minDistMeters = dMeters;
+      });
+
+      if (minDistMeters > 35 && !AppState.simTimer) {
+        // Meer dan 30m afgeweken van berekende route: geruisloos herberekenen vanaf huidige locatie
+        AppState.origin = { label: 'Huidige GPS-positie', lat, lon };
+        showToast('Route wordt automatisch herberekend vanaf je huidige positie...', 'info');
+        calculateAndRenderRoute(true);
+        return;
+      }
+
+      // 3. Controleer afstand tot volgende afslag voor spraakinstructies op 250m, 50m en 0m
+      const nextStep = activeRoute.maneuvers[AppState.activeManeuverIndex + 1];
+      if (!nextStep || !nextStep.coord) return;
+
+      const distToTurnMeters = Math.round(haversineKm(lat, lon, nextStep.coord[1], nextStep.coord[0]) * 1000);
+      document.getElementById('cockpitTurnDistance').textContent =
+        distToTurnMeters >= 1000 ? `Over ${(distToTurnMeters / 1000).toFixed(1)} km` : `Over ${distToTurnMeters} m`;
+      document.getElementById('cockpitStreetName').textContent = nextStep.streetName || nextStep.instruction;
+      document.getElementById('cockpitRvvAdvice').innerHTML = `<span>🛵</span><span>${nextStep.rvvNote}</span>`;
+
+      const stepKey = `step-${AppState.activeManeuverIndex + 1}`;
+      if (distToTurnMeters <= 260 && distToTurnMeters > 80 && !AppState.spokenAnnouncements[`${stepKey}-250`]) {
+        AppState.spokenAnnouncements[`${stepKey}-250`] = true;
+        speakDutchInstruction(`Over tweehonderdvijftig meter, ${nextStep.instruction}`);
+      } else if (distToTurnMeters <= 60 && distToTurnMeters > 20 && !AppState.spokenAnnouncements[`${stepKey}-50`]) {
+        AppState.spokenAnnouncements[`${stepKey}-50`] = true;
+        speakDutchInstruction(`Over vijftig meter, ${nextStep.instruction}`);
+      } else if (distToTurnMeters <= 20) {
+        if (!AppState.spokenAnnouncements[`${stepKey}-0`]) {
+          AppState.spokenAnnouncements[`${stepKey}-0`] = true;
+          speakDutchInstruction(nextStep.instruction);
+        }
+        AppState.activeManeuverIndex = Math.min(
+          activeRoute.maneuvers.length - 1,
+          AppState.activeManeuverIndex + 1
+        );
+      }
+    }
+
+    // Demo-rit simulator zodat de 3D-cockpit, snelheidsmeter en spraak ook binnen getest kunnen worden
+    function toggleSimulationDemo() {
+      if (AppState.simTimer) {
+        stopSimulationDemo();
+        return;
+      }
+      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
+      if (!activeRoute || activeRoute.coords.length < 2) return;
+
+      AppState.simCoordIndex = 0;
+      document.getElementById('demoRideLabel').textContent = 'Stop Demo';
+      showToast('Demo-rit gestart: 3D-camera en snelheidsmeter volgen nu de route!');
+
+      AppState.simTimer = setInterval(() => {
+        const coords = activeRoute.coords;
+        if (AppState.simCoordIndex >= coords.length - 1) {
+          stopSimulationDemo();
+          speakDutchInstruction('Je hebt je bestemming bereikt.');
+          showToast('Bestemming bereikt! 🏁');
+          return;
+        }
+
+        const curr = coords[AppState.simCoordIndex];
+        const next = coords[AppState.simCoordIndex + 1];
+        const bearing = computeBearing(curr[1], curr[0], next[1], next[0]);
+        const targetSpeed = AppState.vehicleMode === 'brom' ? 43 : 24;
+        const jitterSpeed = targetSpeed + Math.floor(Math.random() * 5) - 1; // Af en toe net boven max voor overspeed test
+
+        const segKm = haversineKm(curr[1], curr[0], next[1], next[0]);
+        addDistanceToOdometer(segKm);
+
+        updateSpeedometerUI(jitterSpeed);
+        placeOrUpdateUserPuck(next[1], next[0], bearing);
+        processNavigationProgress(next[1], next[0], bearing);
+
+        AppState.simCoordIndex++;
+      }, 650);
+    }
+
+    function stopSimulationDemo() {
+      if (AppState.simTimer) {
+        clearInterval(AppState.simTimer);
+        AppState.simTimer = null;
+      }
+      const lbl = document.getElementById('demoRideLabel');
+      if (lbl) lbl.textContent = 'Simuleer Rit';
+      updateSpeedometerUI(0);
+    }
+
+    function useCurrentGpsForOrigin() {
+      if (!('geolocation' in navigator)) {
+        showToast('Geolocatie wordt niet ondersteund door je browser.', 'warn');
+        return;
+      }
+      showToast('Huidige GPS-positie ophalen...');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          AppState.origin = {
+            label: 'Mijn Huidige GPS-locatie',
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude
+          };
+          SafeStorage.set('so_origin', AppState.origin);
+          document.getElementById('originInput').value = AppState.origin.label;
+          calculateAndRenderRoute();
+        },
+        () => {
+          showToast('Kon huidige GPS-locatie niet ophalen. Controleer je locatierechten.', 'warn');
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+
+    /*************************************************************************
+     * KAART-BEDIENINGSKNOPPEN (RECHTS OP HET SCHERM)
+     *************************************************************************/
+    function centerAndLockGps() {
+      AppState.gpsLocked = true;
+      updateGpsLockIndicator();
+      const target = AppState.lastGpsPos || AppState.origin;
+      if (map && target) {
+        map.easeTo({
+          center: [target.lon, target.lat],
+          zoom: AppState.isNavigating ? 17 : 14,
+          pitch: AppState.is3D ? 60 : 0,
+          duration: 700
+        });
+      }
+    }
+
+    function updateGpsLockIndicator() {
+      const dot = document.getElementById('gpsFollowDot');
+      if (dot) {
+        dot.className = AppState.gpsLocked
+          ? 'w-2.5 h-2.5 rounded-full bg-emerald-400'
+          : 'w-2.5 h-2.5 rounded-full bg-amber-400';
+      }
+    }
+
+    function toggleMapPitch() {
+      AppState.is3D = !AppState.is3D;
+      const btn = document.getElementById('pitchToggleBtn');
+      if (btn) btn.textContent = AppState.is3D ? '3D' : '2D';
+      if (map) {
+        map.easeTo({ pitch: AppState.is3D ? 60 : 0, duration: 500 });
+      }
+    }
+
+    function mapZoom(delta) {
+      if (!map) return;
+      map.zoomTo(map.getZoom() + delta, { duration: 250 });
+    }
+
+    function toggleDayNightUi() {
+      AppState.highContrastNight = !AppState.highContrastNight;
+      const btn = document.getElementById('dayNightBtn');
+      if (btn) btn.textContent = AppState.highContrastNight ? '☀️' : '🌙';
+      const mapEl = document.getElementById('map');
+      if (mapEl) {
+        mapEl.style.filter = AppState.highContrastNight
+          ? 'brightness(0.82) contrast(1.18) saturate(1.1)'
+          : 'none';
+      }
+      showToast(AppState.highContrastNight ? 'Nacht-contrastmodus geactiveerd' : 'Dagmodus geactiveerd');
+    }
+
+    function openInGoogleMaps() {
+      const orig = `${AppState.origin.lat},${AppState.origin.lon}`;
+      const dest = `${AppState.destination.lat},${AppState.destination.lon}`;
+      const wps = AppState.waypoints.map((w) => `${w.lat},${w.lon}`).join('|');
+      const travelmode = 'bicycling';
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(orig)}&destination=${encodeURIComponent(dest)}${
+        wps ? `&waypoints=${encodeURIComponent(wps)}` : ''
+      }&travelmode=${travelmode}`;
+      window.open(url, '_blank', 'noopener');
+    }
+
+    /*************************************************************************
+     * KILOMETERTELLER (ODOMETER) & ONDERHOUDSMONITOR
+     *************************************************************************/
+    function addDistanceToOdometer(deltaKm) {
+      AppState.odometer.totalKm = Number((AppState.odometer.totalKm + deltaKm).toFixed(2));
+      AppState.odometer.trip1Km = Number((AppState.odometer.trip1Km + deltaKm).toFixed(2));
+      AppState.odometer.trip2Km = Number((AppState.odometer.trip2Km + deltaKm).toFixed(2));
+      SafeStorage.set('so_odometer', AppState.odometer);
+      renderOdometerAndMaintenance();
+    }
+
+    function syncTotalOdometer() {
+      const input = document.getElementById('odoSyncInput');
+      const val = parseFloat(input.value);
+      if (isNaN(val) || val < 0) {
+        showToast('Voer een geldige kilometerstand in.', 'warn');
+        return;
+      }
+      AppState.odometer.totalKm = Number(val.toFixed(1));
+      SafeStorage.set('so_odometer', AppState.odometer);
+      input.value = '';
+      renderOdometerAndMaintenance();
+      showToast(`Kilometerteller gelijkgesteld op ${AppState.odometer.totalKm} km!`);
+    }
+
+    function resetTripCounter(tripNum) {
+      if (tripNum === 1) AppState.odometer.trip1Km = 0;
+      if (tripNum === 2) AppState.odometer.trip2Km = 0;
+      SafeStorage.set('so_odometer', AppState.odometer);
+      renderOdometerAndMaintenance();
+      showToast(`Dagteller Trip ${tripNum} gereset naar 0.00 km.`);
+    }
+
+    function registerMaintenanceDone() {
+      AppState.odometer.lastServiceKm = AppState.odometer.totalKm;
+      SafeStorage.set('so_odometer', AppState.odometer);
+      renderOdometerAndMaintenance();
+      showToast('Onderhoudsbeurt geregistreerd op huidige kilometerstand! 🔧');
+    }
+
+    function renderOdometerAndMaintenance() {
+      document.getElementById('odoTotalText').textContent = AppState.odometer.totalKm.toFixed(1);
+      document.getElementById('odoTrip1Text').textContent = AppState.odometer.trip1Km.toFixed(2);
+      document.getElementById('odoTrip2Text').textContent = AppState.odometer.trip2Km.toFixed(2);
+
+      const drivenSinceService = Math.max(0, AppState.odometer.totalKm - (AppState.odometer.lastServiceKm || 0));
+      const intervals = [
+        { name: 'Motorolie verversen (4-takt)', limitKm: 3000 },
+        { name: 'V-snaar & Variorollen inspectie', limitKm: 6000 },
+        { name: 'Bougie, Luchtfilter & Remmen', limitKm: 9000 }
+      ];
+
+      const container = document.getElementById('maintenanceBarsContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      intervals.forEach((item) => {
+        const remaining = Math.max(0, item.limitKm - (drivenSinceService % item.limitKm));
+        const pct = Math.min(100, Math.round(((item.limitKm - remaining) / item.limitKm) * 100));
+        const isWarn = remaining < 350;
+
+        const row = document.createElement('div');
+        row.innerHTML = `
+          <div class="flex justify-between font-bold ${isWarn ? 'text-amber-300' : 'text-slate-300'}">
+            <span>${item.name}</span>
+            <span>Over ${remaining.toFixed(0)} km</span>
+          </div>
+          <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-1">
+            <div class="h-full ${isWarn ? 'bg-amber-400' : 'bg-emerald-500'}" style="width: ${pct}%"></div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    /*************************************************************************
+     * FAVORIETEN BEHEER
+     *************************************************************************/
+    function renderFavoritesList() {
+      const container = document.getElementById('favoritesList');
+      if (!container) return;
+      container.innerHTML = '';
+
+      AppState.favorites.forEach((fav, idx) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-2';
+        card.innerHTML = `
+          <div class="min-w-0">
+            <div class="text-sm font-extrabold text-white truncate">${fav.title}</div>
+            <div class="text-xs text-slate-400 truncate">${fav.origin.label} → ${fav.destination.label}</div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" class="touch-btn px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Laad</button>
+            <button type="button" class="touch-btn px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-red-400 text-xs font-bold">✕</button>
+          </div>
+        `;
+
+        const [loadBtn, delBtn] = card.querySelectorAll('button');
+        loadBtn.onclick = () => {
+          AppState.origin = { ...fav.origin };
+          AppState.destination = { ...fav.destination };
+          AppState.waypoints = Array.isArray(fav.waypoints) ? [...fav.waypoints] : [];
+          SafeStorage.set('so_origin', AppState.origin);
+          SafeStorage.set('so_destination', AppState.destination);
+          SafeStorage.set('so_waypoints', AppState.waypoints);
+          initInputsFromState();
+          renderWaypointsList();
+          switchBottomTab('route');
+          calculateAndRenderRoute();
+        };
+
+        delBtn.onclick = () => {
+          AppState.favorites.splice(idx, 1);
+          SafeStorage.set('so_favorites', AppState.favorites);
+          renderFavoritesList();
+        };
+
+        container.appendChild(card);
+      });
+    }
+
+    function saveCurrentRouteAsFavorite() {
+      const title = `${AppState.origin.label.split(',')[0]} → ${AppState.destination.label.split(',')[0]}`;
+      AppState.favorites.unshift({
+        title,
+        origin: { ...AppState.origin },
+        destination: { ...AppState.destination },
+        waypoints: [...AppState.waypoints]
+      });
+      SafeStorage.set('so_favorites', AppState.favorites);
+      renderFavoritesList();
+      showToast('Route opgeslagen bij je Favorieten! ⭐');
+    }
+
+    /*************************************************************************
+     * VERTREK-CHECK MODAL (5 ESSENTIËLE VEILIGHEIDSCONTROLES)
+     *************************************************************************/
+    const DEPARTURE_CHECKS = [
+      { key: 'helmet', title: '1. Helmplicht gecontroleerd', sub: 'Goedgekeurde ECE 22.05 / 22.06 of NTA 8776 helm vastgegespt' },
+      { key: 'lights', title: '2. Verlichting & knipperlichten', sub: 'Dimlicht, achterlicht, remlicht en richtingaanwijzers werken' },
+      { key: 'fuel', title: '3. Brandstofpeil (E5 / Euro 98) of Accu', sub: 'Voldoende E5-benzine (voorkomt ethanol-schade) of acculading' },
+      { key: 'tires', title: '4. Bandenspanning & remmen', sub: 'Voorband ~2.0 bar, achterband ~2.25 bar en remdruk gecontroleerd' },
+      { key: 'mount', title: '5. Telefoon vergrendeld op stuurhouder', sub: 'Stevig vastgezet voor handsfree 3D-cockpit navigatie' }
+    ];
+
+    function renderDepartureChecklist() {
+      const container = document.getElementById('checklistItemsContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      DEPARTURE_CHECKS.forEach((item) => {
+        const checked = !!AppState.checklist[item.key];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-full text-left p-3 rounded-2xl border transition flex items-center justify-between gap-3 ${
+          checked
+            ? 'bg-emerald-950/50 border-emerald-500/60 text-white'
+            : 'bg-slate-950 border-slate-800 text-slate-300'
+        }`;
+        btn.innerHTML = `
+          <div>
+            <div class="text-sm font-extrabold">${item.title}</div>
+            <div class="text-xs text-slate-400">${item.sub}</div>
+          </div>
+          <span class="w-7 h-7 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
+            checked ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
+          }">${checked ? '✓' : ''}</span>
+        `;
+        btn.onclick = () => {
+          AppState.checklist[item.key] = !AppState.checklist[item.key];
+          SafeStorage.set('so_checklist', AppState.checklist);
+          renderDepartureChecklist();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function openDepartureCheckModal() {
+      renderDepartureChecklist();
+      document.getElementById('departureCheckModal').classList.remove('hidden');
+    }
+
+    function closeDepartureCheckModal() {
+      document.getElementById('departureCheckModal').classList.add('hidden');
+    }
+
+    function checkAllDepartureItems() {
+      DEPARTURE_CHECKS.forEach((i) => {
+        AppState.checklist[i.key] = true;
+      });
+      SafeStorage.set('so_checklist', AppState.checklist);
+      renderDepartureChecklist();
+    }
+
+    function confirmDepartureCheckAndStart() {
+      closeDepartureCheckModal();
+      showToast('Vertrek-Check compleet. Goede en veilige reis! 🛵');
+    }
+
+    /*************************************************************************
+     * BOTTOM SHEET NAVIGATIE & INKLAPPEN
+     *************************************************************************/
+    function switchBottomTab(tabName) {
+      const tabs = {
+        route: { content: 'tabContentRoute', btn: 'navTabRoute' },
+        favorites: { content: 'tabContentFavorites', btn: 'navTabFavorites' },
+        odometer: { content: 'tabContentOdometer', btn: 'navTabOdometer' }
+      };
+
+      Object.keys(tabs).forEach((key) => {
+        const cEl = document.getElementById(tabs[key].content);
+        const bEl = document.getElementById(tabs[key].btn);
+        if (key === tabName) {
+          cEl.classList.remove('hidden');
+          bEl.className = 'touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 font-bold text-xs';
+        } else {
+          cEl.classList.add('hidden');
+          bEl.className = 'touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-bold text-xs';
+        }
+      });
+
+      if (AppState.sheetCollapsed) {
+        toggleSheetCollapse(false);
+      }
+    }
+
+    function toggleSheetCollapse(forceState) {
+      AppState.sheetCollapsed = typeof forceState === 'boolean' ? forceState : !AppState.sheetCollapsed;
+      const body = document.getElementById('sheetBody');
+      const chevron = document.getElementById('sheetCollapseChevron');
+      if (body) body.classList.toggle('hidden', AppState.sheetCollapsed);
+      if (chevron) chevron.textContent = AppState.sheetCollapsed ? '▲' : '▼';
+    }
+  </script>
+</body>
+</html>
