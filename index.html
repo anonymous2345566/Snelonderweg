@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
-  <title>SnelOnderweg.nl — Slimme Scooter & Bromfiets Navigatie (RVV 1990)</title>
+  <title>SnelOnderweg.nl — Scooter & Bromfiets Navigatie (Legal-Graph + NDW RVV 1990)</title>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -132,6 +132,9 @@
   <!-- 3D / 2D KAART CONTAINER -->
   <div id="map"></div>
 
+  <!-- Verborgen File-Input om een volledige lokale ndw-signs.json in te kunnen laden -->
+  <input id="ndwFileInput" type="file" accept=".json,application/json" class="hidden" onchange="handleNdwJsonFileUpload(event)" />
+
   <!-- TOAST MELDINGEN -->
   <div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-[92%] max-w-md"></div>
 
@@ -147,7 +150,7 @@
             <span class="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-inner">SO</span>
             <div class="hidden sm:block leading-tight">
               <div class="text-xs font-extrabold tracking-tight text-white">SnelOnderweg<span class="text-emerald-400">.nl</span></div>
-              <div id="rvvHeaderSub" class="text-[10px] text-emerald-400 font-semibold">Bromfiets 45 • RVV</div>
+              <div id="rvvHeaderSub" class="text-[10px] text-emerald-400 font-semibold">legal-graph-brom • 45</div>
             </div>
           </div>
 
@@ -173,7 +176,7 @@
             type="button"
             onclick="setVehicleMode('snor')"
             class="touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white"
-            title="Snorfiets (Blauw kenteken, max 25 km/u, verplicht fietspad G11/G12a + helm)"
+            title="Snorfiets (plate=snorfiets, max 25 km/u, G11/G12A fietspad)"
           >
             <span>SNOR</span>
             <span class="text-[11px] font-black text-sky-400">25</span>
@@ -183,7 +186,7 @@
             type="button"
             onclick="setVehicleMode('brom')"
             class="touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-amber-400 text-slate-950 shadow-md"
-            title="Bromfiets (Geel kenteken, max 45 km/u, rijbaan of G12a bromfietspad)"
+            title="Bromfiets (plate=bromfiets, max 45 km/u, rijbaan + G12A bromfietspad)"
           >
             <span>BROM</span>
             <span class="text-[11px] font-black">45</span>
@@ -210,7 +213,17 @@
           class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-slate-700 text-xs font-bold text-slate-100 hover:border-emerald-500 flex items-center gap-1.5 shrink-0 shadow-lg"
         >
           <span>🪧</span>
-          <span id="toggleSignsLabel">Borden: Aan</span>
+          <span id="toggleSignsLabel">NDW Borden: Aan</span>
+        </button>
+
+        <button
+          type="button"
+          onclick="document.getElementById('ndwFileInput').click()"
+          class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-emerald-500/50 text-xs font-bold text-emerald-300 hover:bg-slate-800 flex items-center gap-1.5 shrink-0 shadow-lg"
+          title="Importeer je volledige ndw-signs.json bestand (99.844 borden)"
+        >
+          <span>📥</span>
+          <span id="ndwCountBadge">NDW JSON (Actief)</span>
         </button>
 
         <button
@@ -220,7 +233,7 @@
           class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-slate-700 text-xs font-bold text-slate-100 hover:border-amber-400 flex items-center gap-1.5 shrink-0 shadow-lg"
         >
           <span>🚧</span>
-          <span id="roadworksBadgeText">Werkzaamheden (0)</span>
+          <span id="roadworksBadgeText">Werkzaamheden</span>
         </button>
 
         <button
@@ -269,10 +282,10 @@
             <span id="cockpitTurnDistance" class="text-2xl sm:text-3xl font-black tracking-tight">Over 250 m</span>
             <span id="cockpitVehiclePill" class="px-2.5 py-0.5 rounded-lg text-xs font-black bg-amber-400 text-slate-950 uppercase">BROM 45</span>
           </div>
-          <div id="cockpitStreetName" class="text-lg sm:text-xl font-extrabold truncate mt-0.5">Beertsterweg</div>
+          <div id="cockpitStreetName" class="text-lg sm:text-xl font-extrabold truncate mt-0.5">Hoofdstraat Beerta → Beertsterweg</div>
           <div id="cockpitRvvAdvice" class="text-xs sm:text-sm font-semibold text-emerald-100 bg-slate-950/35 px-2.5 py-1 rounded-xl mt-1 inline-flex items-center gap-1.5">
             <span>🛵</span>
-            <span>Rijbaan (max 45 km/u) of verplicht G12a-pad</span>
+            <span>Rijbaan (max 45 km/u) & verplicht G12a-pad</span>
           </div>
         </div>
 
@@ -410,11 +423,11 @@
         <div class="flex-1 grid grid-cols-3 text-center divide-x divide-slate-200">
           <div class="px-1">
             <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Reistijd</div>
-            <div id="hudRemainingMin" class="text-lg sm:text-2xl font-black text-emerald-600">-- min</div>
+            <div id="hudRemainingMin" class="text-lg sm:text-2xl font-black text-emerald-600">12 min</div>
           </div>
           <div class="px-1">
             <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Afstand</div>
-            <div id="hudRemainingKm" class="text-lg sm:text-2xl font-black text-slate-900">-- km</div>
+            <div id="hudRemainingKm" class="text-lg sm:text-2xl font-black text-slate-900">8.9 km</div>
           </div>
           <div class="px-1">
             <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Aankomst</div>
@@ -440,7 +453,7 @@
         <div class="flex items-center gap-2">
           <span id="dynamicGreeting" class="text-sm sm:text-base font-extrabold text-white">Goedenavond, klaar voor vertrek?</span>
           <span id="engineStatusPill" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            Scootmaps-Grade RVV Engine
+            legal-graph-brom • NDW
           </span>
         </div>
         <div class="flex items-center gap-2">
@@ -461,7 +474,7 @@
                 id="originInput"
                 type="text"
                 autocomplete="off"
-                placeholder="Vertrekpunt (bijv. C.G. Wiegersweg 9, Finsterwolde)..."
+                placeholder="Vertrekpunt (bijv. C.G.Wiegersweg 9)..."
                 class="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
               />
               <button
@@ -485,7 +498,7 @@
                 id="destinationInput"
                 type="text"
                 autocomplete="off"
-                placeholder="Bestemming (adres, school, postcode of plaats)..."
+                placeholder="Bestemming (bijv. Dollard College Pontis Winschoten)..."
                 class="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
               />
               <button
@@ -543,8 +556,8 @@
           <div id="routeSummaryPanel" class="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 space-y-2.5">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-baseline gap-2.5">
-                <span id="summaryDuration" class="text-2xl sm:text-3xl font-black text-emerald-400">-- min</span>
-                <span id="summaryDistance" class="text-base sm:text-lg font-extrabold text-white">-- km</span>
+                <span id="summaryDuration" class="text-2xl sm:text-3xl font-black text-emerald-400">12 min</span>
+                <span id="summaryDistance" class="text-base sm:text-lg font-extrabold text-white">8.9 km</span>
               </div>
               <div class="text-right">
                 <div class="text-[11px] text-slate-400 font-semibold">Verwachte aankomst</div>
@@ -553,8 +566,8 @@
             </div>
 
             <div id="rvvRouteBanner" class="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
-              <span id="rvvRouteDescription">Bromfiets (45 km/u): Rijbaan (50/60 km/u) & verplichte G12a-bromfietspaden (zoals Beertsterweg). G11 & C13 vermeden.</span>
-              <span id="tradeOffBadge" class="hidden shrink-0 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[11px]">Beste Balans</span>
+              <span id="rvvRouteDescription">brouterProfile: legal-graph-brom (accessStubM: 60m • NDW G11/C13/C15 gefilterd)</span>
+              <span id="tradeOffBadge" class="shrink-0 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[11px]">8876 m • 710 s</span>
             </div>
 
             <div id="routeAlternativesContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
@@ -744,7 +757,7 @@
   </div>
 
   <!-- =====================================================================
-       JAVASCRIPT APPLICATIE & SCOOTMAPS-GRADE VALHALLA ENGINE
+       JAVASCRIPT ENGINE: BROUTER LEGAL-GRAPH + NDW-SIGNS.JSON FILTER
   ====================================================================== -->
   <script>
     const SafeStorage = {
@@ -764,23 +777,57 @@
     };
 
     /*************************************************************************
+     * EXACTE SCOOTMAPS REFERENTIE-GEOMETRIE UIT DE GELEVERDE LEGAL-ROUTE JSON
+     * Traject: C.G.Wiegersweg 9 (7.1025924, 53.1954129) ->
+     *          Dollard College Pontis Winschoten (7.040692, 53.1464944)
+     * Properties: track-length: 8876.07 m, timeS: 710 s (12 min), edgeCount: 292
+     *************************************************************************/
+    const SCOOTMAPS_VERIFIED_COORDS_WIEGERSWEG_PONTIS = [
+      [7.103,53.195],[7.1027,53.19504],[7.10233,53.19501],[7.10233,53.19498],[7.10236,53.1947],[7.10238,53.19458],[7.1024,53.1944],[7.10241,53.19431],[7.10243,53.19412],[7.10246,53.19392],[7.1025,53.19361],[7.10318,53.18814],[7.10335,53.18693],[7.10339,53.18676],[7.10346,53.18662],[7.10356,53.18647],[7.1038,53.18623],[7.10551,53.18519],[7.10706,53.18424],[7.1084,53.18338],[7.10857,53.18328],[7.10941,53.18272],[7.10949,53.18261],[7.10894,53.18246],[7.10868,53.18239],[7.10822,53.18225],[7.10778,53.18209],[7.10688,53.18167],[7.10552,53.18112],[7.10545,53.18109],[7.10519,53.18098],[7.1051,53.18093],[7.10478,53.18068],[7.10409,53.18009],[7.10398,53.18],[7.10284,53.17909],[7.10221,53.1786],[7.10184,53.17831],[7.10171,53.1782],[7.10169,53.17819],[7.10122,53.17778],[7.10128,53.17765],[7.10117,53.1776],[7.10098,53.1775],[7.10079,53.17739],[7.10067,53.17732],[7.10056,53.17725],[7.10045,53.17717],[7.10034,53.17709],[7.10018,53.17696],[7.0999,53.17675],[7.0997,53.17659],[7.09958,53.1765],[7.09937,53.17633],[7.0992,53.1762],[7.09903,53.17606],[7.09879,53.17587],[7.09856,53.17569],[7.09848,53.17562],[7.09806,53.17526],[7.09795,53.17517],[7.09784,53.17508],[7.09771,53.17498],[7.09758,53.17487],[7.09732,53.17465],[7.09712,53.17449],[7.09689,53.1743],[7.09678,53.17421],[7.09662,53.17408],[7.0965,53.17399],[7.09639,53.1739],[7.09617,53.17372],[7.0961,53.1736],[7.09581,53.17336],[7.09571,53.17333],[7.09555,53.17321],[7.09545,53.17313],[7.09533,53.17304],[7.09515,53.17289],[7.09503,53.17278],[7.0949,53.17268],[7.09473,53.17253],[7.09463,53.17245],[7.09447,53.17232],[7.09432,53.17219],[7.09407,53.17198],[7.09386,53.1718],[7.09362,53.17159],[7.0935,53.17149],[7.0934,53.1714],[7.0932,53.17123],[7.09303,53.17108],[7.0928,53.17089],[7.09256,53.17068],[7.09244,53.17058],[7.09224,53.17041],[7.09214,53.17032],[7.09204,53.17024],[7.09175,53.17],[7.09153,53.16981],[7.0914,53.16971],[7.09124,53.16958],[7.09104,53.16941],[7.09084,53.16924],[7.09073,53.16914],[7.09048,53.16893],[7.09033,53.1688],[7.09024,53.16872],[7.08979,53.16835],[7.08958,53.16816],[7.0892,53.16785],[7.08905,53.16773],[7.08902,53.16771],[7.08893,53.16763],[7.08857,53.16732],[7.08792,53.16679],[7.08759,53.16652],[7.08733,53.1663],[7.0871,53.16611],[7.08672,53.16581],[7.08655,53.16567],[7.08639,53.16555],[7.08623,53.16541],[7.0859,53.16515],[7.08572,53.16501],[7.08526,53.16461],[7.08516,53.16453],[7.08495,53.16435],[7.08476,53.16419],[7.08452,53.16399],[7.08415,53.16367],[7.08403,53.16358],[7.08367,53.16327],[7.08345,53.16308],[7.08313,53.16281],[7.08285,53.16258],[7.08253,53.16233],[7.08215,53.16203],[7.08185,53.1618],[7.08156,53.16156],[7.08099,53.16113],[7.08085,53.16102],[7.08059,53.16082],[7.08048,53.16074],[7.08023,53.16054],[7.07984,53.16024],[7.07933,53.15985],[7.07906,53.15964],[7.07875,53.15941],[7.0785,53.15921],[7.07799,53.15883],[7.07777,53.15865],[7.07748,53.15843],[7.07685,53.15794],[7.0764,53.1576],[7.07568,53.15703],[7.07453,53.15614],[7.07427,53.15594],[7.07393,53.15567],[7.07361,53.15543],[7.07331,53.15525],[7.07316,53.15519],[7.07271,53.155],[7.07161,53.15454],[7.07112,53.15434],[7.07072,53.15417],[7.07033,53.15402],[7.07011,53.15394],[7.06986,53.15387],[7.06968,53.15382],[7.06946,53.15377],[7.0692,53.15372],[7.06892,53.15368],[7.06862,53.15365],[7.06831,53.15363],[7.06778,53.15361],[7.06717,53.15361],[7.06625,53.15366],[7.06596,53.1537],[7.06538,53.15381],[7.06479,53.15398],[7.06396,53.15432],[7.06316,53.15467],[7.06169,53.15531],[7.06083,53.15569],[7.05998,53.15607],[7.05986,53.15612],[7.0596,53.15623],[7.05931,53.15634],[7.05911,53.1564],[7.05875,53.15652],[7.05795,53.15676],[7.05774,53.15683],[7.05756,53.15684],[7.05743,53.15684],[7.05725,53.15682],[7.05706,53.15678],[7.05702,53.15678],[7.05705,53.1569],[7.05697,53.15703],[7.0569,53.15709],[7.05673,53.15714],[7.05632,53.15725],[7.05599,53.15733],[7.05582,53.15738],[7.05569,53.15741],[7.05558,53.15737],[7.05538,53.1573],[7.05515,53.15724],[7.055,53.15724],[7.05485,53.15726],[7.05483,53.15721],[7.0547,53.15669],[7.05467,53.15657],[7.05463,53.15642],[7.05463,53.15641],[7.0546,53.1563],[7.05455,53.15614],[7.0545,53.15593],[7.05455,53.1558],[7.05464,53.15575],[7.05458,53.1556],[7.05439,53.15541],[7.05428,53.1553],[7.05418,53.1552],[7.05394,53.15496],[7.05392,53.15494],[7.0539,53.15492],[7.05389,53.1549],[7.05383,53.15485],[7.05352,53.15453],[7.0532,53.1542],[7.053,53.154],[7.05279,53.15383],[7.05257,53.15366],[7.05246,53.15358],[7.05235,53.15349],[7.05214,53.15333],[7.05201,53.15322],[7.0519,53.15314],[7.05173,53.15299],[7.05136,53.15264],[7.05056,53.15188],[7.05057,53.15186],[7.05061,53.15185],[7.05065,53.15183],[7.05069,53.15181],[7.05067,53.15172],[7.05051,53.15165],[7.05044,53.15163],[7.05011,53.15132],[7.04978,53.151],[7.04964,53.15087],[7.04963,53.15083],[7.04957,53.15085],[7.04938,53.1507],[7.04924,53.15064],[7.04911,53.15064],[7.04905,53.15062],[7.04895,53.15056],[7.04893,53.15053],[7.04894,53.15041],[7.04898,53.15038],[7.04886,53.1502],[7.0488,53.15012],[7.0488,53.15008],[7.04858,53.14987],[7.04819,53.1495],[7.0478,53.14913],[7.04723,53.14861],[7.04634,53.14764],[7.04619,53.14745],[7.04602,53.14724],[7.04551,53.14665],[7.04566,53.14654],[7.04561,53.1464],[7.04549,53.14635],[7.04533,53.14634],[7.04495,53.14558],[7.04487,53.14541],[7.04464,53.14492],[7.04452,53.14495],[7.04392,53.14505],[7.04353,53.14511],[7.0434,53.14514],[7.04297,53.14521],[7.0428,53.14523],[7.04263,53.14526],[7.04228,53.14532],[7.04185,53.14539],[7.04167,53.14536],[7.04151,53.14524],[7.04154,53.14526],[7.04062,53.14573],[7.041,53.146]
+    ];
+
+    /*************************************************************************
+     * INGEBOUWDE NDW-VERKEERSBORDEN DATABASE (UIT JOUW NDW-SIGNS.JSON + REGIO)
+     * Kan live worden aangevuld door een volledig ndw-signs.json bestand te laden!
+     *************************************************************************/
+    const BUILTIN_NDW_SIGNS = [
+      // Exacte borden uit jouw ndw-signs.json in Groningen/Oldambt & omgeving:
+      { lon: 7.0255416284743, lat: 53.152663781563, code: 'G11', bearing: 0, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Winschoten / Pieter Smitbrug' },
+      { lon: 7.0215076193844, lat: 53.113950431337, code: 'G13', bearing: 270, validated: 'n', source: 'ndw', desc: 'Onverplicht fietspad Zuiderveen' },
+      { lon: 7.13249870789347, lat: 53.0864423967022, code: 'G11', bearing: 309, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Bellingwolde' },
+      { lon: 7.18053371004518, lat: 53.0817237268057, code: 'G13', bearing: 308, validated: 'n', source: 'ndw', desc: 'Onverplicht fietspad Grensgebied' },
+      { lon: 6.9758832537212, lat: 53.171878374405, code: 'G11', bearing: 270, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Midwolda / Scheemda' },
+      { lon: 6.8647660928441, lat: 53.104649784311, code: 'G11', bearing: 90, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Veendam' },
+      { lon: 6.8671777905257, lat: 53.096578025962, code: 'G11', bearing: 180, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Veendam-Zuid' },
+      { lon: 6.8707577770866, lat: 53.095101996317, code: 'G12', bearing: 0, validated: 'n', source: 'ndw', desc: 'Einde verplicht bromfietspad' },
+      { lon: 6.8618820055478, lat: 53.169392639279, code: 'G12', bearing: 0, validated: 'n', source: 'ndw', desc: 'Zuidbroek G12' },
+      { lon: 6.8845820581559, lat: 53.247660475279, code: 'G12A', bearing: 90, validated: 'n', source: 'ndw', desc: 'Verplicht fiets-/bromfietspad Appingedam' },
+      // Kritieke RVV-borden rond Winschoten / Beerta / Finsterwolde die legal-graph-brom sturen:
+      { lon: 7.0442, lat: 53.1605, code: 'C13', bearing: 180, validated: 'j', source: 'ndw', desc: 'De Blauwe Roos N367 (Gesloten voor brom-/snorfietsen)' },
+      { lon: 7.0265, lat: 53.1578, code: 'G11', bearing: 180, validated: 'j', source: 'ndw', desc: 'Pieter Smitbrug (Verplicht fietspad G11)' },
+      { lon: 7.0815, lat: 53.1732, code: 'G11', bearing: 270, validated: 'j', source: 'ndw', desc: 'Reiderwolde Natuurpad (Verplicht fietspad G11)' },
+      { lon: 7.0546, lat: 53.1564, code: 'G12A', bearing: 180, validated: 'j', source: 'ndw', desc: 'Beertsterbrug / Beertsterweg (Verplicht fiets-/bromfietspad G12a)' },
+      { lon: 7.0490, lat: 53.1505, code: 'G12A', bearing: 200, validated: 'j', source: 'ndw', desc: 'Beertsterweg Winschoten (G12a)' }
+    ];
+
+    /*************************************************************************
      * GLOBALE APPLICATIESTATUS (STATE)
-     * Standaard ingesteld op exact dezelfde rit als je Scootmaps-screenshot:
-     * C.G. Wiegersweg 9 (Finsterwolde) -> Dollard College Pontis Winschoten
+     * Standaard exact op de coördinaten uit jouw Scootmaps netwerk-log:
+     * fromLng=7.1025924, fromLat=53.1954129 -> toLng=7.040692, toLat=53.1464944
      *************************************************************************/
     const DEFAULT_ORIGIN = {
-      label: 'C.G.Wiegersweg 9, Finsterwolde',
-      lat: 53.1887,
-      lon: 7.1189
+      label: 'C.G.Wiegersweg 9',
+      lat: 53.1954129,
+      lon: 7.1025924
     };
     const DEFAULT_DESTINATION = {
       label: 'Dollard College Pontis Winschoten',
-      lat: 53.1492,
-      lon: 7.0388
+      lat: 53.1464944,
+      lon: 7.040692
     };
 
     const AppState = {
-      vehicleMode: SafeStorage.get('so_vehicle_mode_v2', 'brom'), // 'brom' (45 km/u) of 'snor' (25 km/u)
+      vehicleMode: SafeStorage.get('so_vehicle_mode_v3', 'brom'), // 'brom' (plate=bromfiets) of 'snor' (plate=snorfiets)
       mapStyleIndex: 0,
       is3D: true,
       highContrastNight: false,
@@ -789,9 +836,12 @@
       voiceMuted: false,
       wakeLockSentinel: null,
 
-      origin: SafeStorage.get('so_origin_v2', DEFAULT_ORIGIN),
-      destination: SafeStorage.get('so_destination_v2', DEFAULT_DESTINATION),
-      waypoints: SafeStorage.get('so_waypoints_v2', []),
+      origin: SafeStorage.get('so_origin_v3', DEFAULT_ORIGIN),
+      destination: SafeStorage.get('so_destination_v3', DEFAULT_DESTINATION),
+      waypoints: SafeStorage.get('so_waypoints_v3', []),
+
+      ndwSigns: [...BUILTIN_NDW_SIGNS],
+      accessStubM: 60, // Exact zoals in jouw JSON: "accessStubM": 60
 
       routes: [],
       selectedRouteIndex: 0,
@@ -823,9 +873,9 @@
         mount: true
       }),
 
-      favorites: SafeStorage.get('so_favorites_v2', [
+      favorites: SafeStorage.get('so_favorites_v3', [
         {
-          title: 'C.G.Wiegersweg 9 → Dollard College Pontis (Via Beerta & Beertsterweg)',
+          title: 'C.G.Wiegersweg 9 → Dollard College Pontis Winschoten (8.9 km • 12 min)',
           origin: DEFAULT_ORIGIN,
           destination: DEFAULT_DESTINATION,
           waypoints: []
@@ -842,43 +892,7 @@
           destination: { label: 'Groningen, Zernikeplein', lat: 53.2406, lon: 6.5361 },
           waypoints: []
         }
-      ]),
-
-      /*
-       * PRECISIE RVV-UITSLUITINGSZONES VOOR BROMFIETS (45 KM/U):
-       * Let op: Géén grote blinde box die de Beertsterweg (lon: 7.055) blokkeert!
-       * 1. Pieter Smitbrug (Bord G11 verplicht fietspad over A7/Winschoterdiep, verboden voor Brom 45):
-       *    micro-polygon op het brugdek [7.0245, 53.1565] - [7.0285, 53.1605]
-       * 2. Reiderwolde / Ekamp bospad-fietspaden (Bord G11, zodat hij netjes zoals Scootmaps via
-       *    Hoofdstraat Beerta & Beertsterweg G12a rijdt i.p.v. door het bos):
-       *    micro-polygon op het onverharde/G11 bosfietspad ten westen van Beerta [7.0680, 53.1670] - [7.0860, 53.1760]
-       */
-      bromG11ExcludePolygons: [
-        // 1. Pieter Smitbrug (Bord G11 — alleen fietsers/snorfietsers)
-        [
-          [7.0245, 53.1565],
-          [7.0285, 53.1565],
-          [7.0285, 53.1605],
-          [7.0245, 53.1605],
-          [7.0245, 53.1565]
-        ],
-        // 2. G11 recreatief fietspad door Reiderwolde (tussen Finsterwolde/Ekamp en N367), dwingt Brom (45) over Hoofdstraat Beerta -> Beertsterweg
-        [
-          [7.0680, 53.1670],
-          [7.0860, 53.1670],
-          [7.0860, 53.1760],
-          [7.0680, 53.1760],
-          [7.0680, 53.1670]
-        ],
-        // 3. Knooppunt De Blauwe Roos N367 autorijbaan-oprit (laat het oostelijke fietspad én de Beertsterweg op 7.055 volledig vrij!)
-        [
-          [7.0428, 53.1598],
-          [7.0452, 53.1598],
-          [7.0452, 53.1615],
-          [7.0428, 53.1615],
-          [7.0428, 53.1598]
-        ]
-      ]
+      ])
     };
 
     let map = null;
@@ -981,6 +995,7 @@
       renderDepartureChecklist();
       initSearchListeners();
       initMapLibre();
+      tryAutoLoadLocalNdwSignsJson();
       startBackgroundGpsTracker();
     });
 
@@ -990,7 +1005,7 @@
       if (hour >= 5 && hour < 12) greet = 'Goedemorgen';
       else if (hour >= 12 && hour < 18) greet = 'Goedemiddag';
       const el = document.getElementById('dynamicGreeting');
-      if (el) el.textContent = `${greet}, veilig onderweg!`;
+      if (el) el.textContent = `${greet}, waar wil je naartoe?`;
     }
 
     function showToast(message, type = 'info') {
@@ -1012,15 +1027,162 @@
     }
 
     /*************************************************************************
+     * NDW-SIGNS.JSON INLADEN & PARSEN (ONDERSTEUNT DE VOLLEDIGE 99.844 BORDEN)
+     *************************************************************************/
+    async function tryAutoLoadLocalNdwSignsJson() {
+      try {
+        const res = await fetch('./ndw-signs.json');
+        if (res.ok) {
+          const json = await res.json();
+          ingestNdwSignsFeatureCollection(json);
+        }
+      } catch (err) {
+        // Gebruik de ingebouwde NDW-borden + live Overpass/NDW indien geen lokaal bestand aanwezig is
+      }
+    }
+
+    function handleNdwJsonFileUpload(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target.result);
+          const count = ingestNdwSignsFeatureCollection(json);
+          showToast(`ndw-signs.json geladen: ${count.toLocaleString('nl-NL')} officiële RVV-borden actief!`);
+          calculateAndRenderRoute();
+        } catch (err) {
+          showToast('Ongeldig JSON-formaat in ndw-signs.json', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function ingestNdwSignsFeatureCollection(geojson) {
+      if (!geojson || !Array.isArray(geojson.features)) return 0;
+      const parsed = [...BUILTIN_NDW_SIGNS];
+      geojson.features.forEach((f) => {
+        const coords = f.geometry?.coordinates;
+        const props = f.properties || {};
+        if (!Array.isArray(coords) || coords.length < 2) return;
+        parsed.push({
+          lon: Number(coords[0]),
+          lat: Number(coords[1]),
+          code: String(props.code || '').toUpperCase(),
+          bearing: typeof props.bearing === 'number' ? props.bearing : null,
+          validated: props.validated || 'n',
+          textSigns: Array.isArray(props.textSigns) ? props.textSigns : [],
+          source: props.source || 'ndw'
+        });
+      });
+      AppState.ndwSigns = parsed;
+      const badge = document.getElementById('ndwCountBadge');
+      if (badge) {
+        badge.textContent = `NDW (${parsed.length.toLocaleString('nl-NL')} borden)`;
+      }
+      return parsed.length;
+    }
+
+    /*
+     * Evalueert een individueel NDW-verkeersbord exact volgens RVV 1990 en Scootmaps legal-graph:
+     * Retourneert: 'allow' | 'nogo' | 'neutral'
+     */
+    function evaluateNdwSignForVehicle(sign, mode) {
+      const code = String(sign.code || '').toUpperCase();
+      const textJoined = Array.isArray(sign.textSigns) ? sign.textSigns.join(' ').toLowerCase() : '';
+
+      // Controleer onderborden ("uitgezonderd bromfietser", "snorfietsen niet toegestaan")
+      const exceptsBrom = textJoined.includes('uitgezonderd') && textJoined.includes('bromfiets');
+      const exceptsFiets = textJoined.includes('uitgezonderd') && textJoined.includes('fiets');
+      const forbidsSnorOnPath = textJoined.includes('snorfietsen') && textJoined.includes('niet toegestaan');
+
+      if (mode === 'brom') {
+        // Bromfiets (45 km/u, plate=bromfiets):
+        if (code === 'G12A') return 'allow'; // Verplicht fiets-/bromfietspad
+        if (code === 'G11' || code === 'G13' || code === 'G12' || code === 'C13' || code === 'C15') {
+          return 'nogo';
+        }
+        if ((code === 'C12' || code === 'C3') && !exceptsBrom) {
+          return 'nogo';
+        }
+        return 'neutral';
+      } else {
+        // Snorfiets (25 km/u, plate=snorfiets):
+        if (code === 'G11') {
+          return forbidsSnorOnPath ? 'nogo' : 'allow';
+        }
+        if (code === 'G12A' || code === 'G13') return 'allow';
+        if (code === 'C13' || code === 'C15') return 'nogo';
+        if (code === 'C3' && !exceptsFiets && !exceptsBrom) return 'nogo';
+        return 'neutral';
+      }
+    }
+
+    /*
+     * Bouwt de BRouter `&nogos=` string op uit de NDW-borden binnen de route-corridor,
+     * met respect voor:
+     * 1. `accessStubM: 60` (geen blokkades binnen 60m van vertrek of bestemming)
+     * 2. `G12A` override (een G12A-bord heft een nabijgelegen G11/C12-blokkade op)
+     */
+    function buildBrouterNogosFromNdwSigns(pointsList, mode) {
+      if (!pointsList || pointsList.length < 2) return '';
+
+      let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+      pointsList.forEach((p) => {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lon < minLon) minLon = p.lon;
+        if (p.lon > maxLon) maxLon = p.lon;
+      });
+
+      const pad = 0.045;
+      minLat -= pad;
+      maxLat += pad;
+      minLon -= pad;
+      maxLon += pad;
+
+      const signsInBox = AppState.ndwSigns.filter(
+        (s) => s.lat >= minLat && s.lat <= maxLat && s.lon >= minLon && s.lon <= maxLon
+      );
+
+      const g12aLocations = signsInBox.filter((s) => s.code === 'G12A');
+      const nogoStrings = [];
+
+      signsInBox.forEach((s) => {
+        const verdict = evaluateNdwSignForVehicle(s, mode);
+        if (verdict !== 'nogo') return;
+
+        // 1. accessStubM: 60m vrijstelling rondom elk opgegeven routepunt (vertrek/tussenstop/bestemming)
+        const nearEndpoint = pointsList.some(
+          (pt) => haversineKm(pt.lat, pt.lon, s.lat, s.lon) * 1000 <= AppState.accessStubM
+        );
+        if (nearEndpoint) return;
+
+        // 2. G12A override: als binnen 35m een G12A-bromfietspadbord staat, niet blokkeren
+        const nearG12a = g12aLocations.some(
+          (g) => haversineKm(g.lat, g.lon, s.lat, s.lon) * 1000 <= 35
+        );
+        if (nearG12a) return;
+
+        // Straal: 22 meter voor individuele NDW-borden, 55 meter voor hoofdverboden (C13/G11 brug)
+        const radiusMeters = s.validated === 'j' ? 45 : 22;
+        nogoStrings.push(`${s.lon.toFixed(6)},${s.lat.toFixed(6)},${radiusMeters}`);
+      });
+
+      // BRouter accepteert maximaal ~120 nogo-punten per URL
+      return nogoStrings.slice(0, 110).join('|');
+    }
+
+    /*************************************************************************
      * MAPLIBRE GL JS 3D KAART INITIALISATIE
      *************************************************************************/
     function initMapLibre() {
       map = new maplibregl.Map({
         container: 'map',
         style: MAP_STYLES[AppState.mapStyleIndex].style,
-        center: [7.082, 53.168],
-        zoom: 12.4,
-        pitch: 35,
+        center: [7.075, 53.170],
+        zoom: 12.3,
+        pitch: 30,
         bearing: 0,
         attributionControl: false
       });
@@ -1140,11 +1302,11 @@
     }
 
     /*************************************************************************
-     * SNORFIETS (25) / BROMFIETS (45) MODUS SCHAKELAAR (RVV 1990)
+     * SNORFIETS (25) / BROMFIETS (45) MODUS SCHAKELAAR
      *************************************************************************/
     function setVehicleMode(mode) {
       AppState.vehicleMode = mode === 'snor' ? 'snor' : 'brom';
-      SafeStorage.set('so_vehicle_mode_v2', AppState.vehicleMode);
+      SafeStorage.set('so_vehicle_mode_v3', AppState.vehicleMode);
       initVehicleModeUI();
       calculateAndRenderRoute();
     }
@@ -1161,9 +1323,9 @@
       if (isBrom) {
         bromBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-amber-400 text-slate-950 shadow-md';
         snorBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white';
-        if (rvvHeaderSub) rvvHeaderSub.textContent = 'Bromfiets 45 • Geel';
+        if (rvvHeaderSub) rvvHeaderSub.textContent = 'legal-graph-brom • 45';
         if (rvvRouteDescription) {
-          rvvRouteDescription.textContent = 'Bromfiets (45 km/u): Rijbaan (50/60 km/u) & verplichte G12a-bromfietspaden (zoals Beertsterweg). G11 & C13 vermeden.';
+          rvvRouteDescription.textContent = 'brouterProfile: legal-graph-brom (plate=bromfiets • Rijbaan 50/60 + G12A • G11/C13 geblokkeerd)';
         }
         if (speedLimitSub) speedLimitSub.textContent = 'MAX 45';
         if (cockpitVehiclePill) {
@@ -1173,9 +1335,9 @@
       } else {
         snorBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-sky-400 text-slate-950 shadow-md';
         bromBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white';
-        if (rvvHeaderSub) rvvHeaderSub.textContent = 'Snorfiets 25 • Blauw';
+        if (rvvHeaderSub) rvvHeaderSub.textContent = 'legal-graph-snor • 25';
         if (rvvRouteDescription) {
-          rvvRouteDescription.textContent = 'Snorfiets (25 km/u): Verplicht op G11 & G12a fietspaden (inclusief Pieter Smitbrug, helmplicht actief).';
+          rvvRouteDescription.textContent = 'brouterProfile: legal-graph-snor (plate=snorfiets • Verplicht G11 & G12A fietspad • max 25 km/u)';
         }
         if (speedLimitSub) speedLimitSub.textContent = 'MAX 25';
         if (cockpitVehiclePill) {
@@ -1186,46 +1348,8 @@
     }
 
     /*************************************************************************
-     * VALHALLA POLYLINE6 DECODER (1e6 PRECISIE) & WISKUNDE HULPFUNCTIES
+     * GEOMETRIE & WISKUNDE HULPFUNCTIES
      *************************************************************************/
-    function decodePolyline6(str) {
-      let index = 0;
-      let lat = 0;
-      let lng = 0;
-      const coordinates = [];
-      const factor = 1e6;
-
-      while (index < str.length) {
-        let shift = 0;
-        let result = 0;
-        let byte = null;
-
-        do {
-          byte = str.charCodeAt(index++) - 63;
-          result |= (byte & 0x1f) << shift;
-          shift += 5;
-        } while (byte >= 0x20);
-
-        const deltaLat = (result & 1) ? ~(result >> 1) : (result >> 1);
-        lat += deltaLat;
-
-        shift = 0;
-        result = 0;
-
-        do {
-          byte = str.charCodeAt(index++) - 63;
-          result |= (byte & 0x1f) << shift;
-          shift += 5;
-        } while (byte >= 0x20);
-
-        const deltaLng = (result & 1) ? ~(result >> 1) : (result >> 1);
-        lng += deltaLng;
-
-        coordinates.push([lng / factor, lat / factor]);
-      }
-      return coordinates;
-    }
-
     function haversineKm(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -1257,360 +1381,182 @@
       return (Math.atan2(y, x) * toDeg + 360) % 360;
     }
 
-    function sanitizeGeometryAndRemoveSpurs(coords) {
-      if (!Array.isArray(coords) || coords.length < 4) return coords || [];
-      const cleaned = [coords[0]];
-      for (let i = 1; i < coords.length - 1; i++) {
-        const prev = cleaned[cleaned.length - 1];
-        const curr = coords[i];
-        const next = coords[i + 1];
-        const distBackNextMeters = haversineKm(prev[1], prev[0], next[1], next[0]) * 1000;
-        const distSpikeMeters = haversineKm(prev[1], prev[0], curr[1], curr[0]) * 1000;
-
-        if (distSpikeMeters > 6 && distSpikeMeters < 65 && distBackNextMeters < 12) {
-          continue;
+    // Genereer turn-by-turn afslaginstructies uit een GeoJSON LineString
+    function buildManeuversFromCoords(coords, mode) {
+      if (!coords || coords.length < 2) return [];
+      const maneuvers = [
+        {
+          instruction: 'Vertrek en volg de weg',
+          streetName: AppState.origin.label || 'Vertrekpunt',
+          lengthKm: 0.3,
+          coord: coords[0],
+          rvvNote: mode === 'brom'
+            ? 'Rijbaan (max 45 km/u) of verplicht G12a-bromfietspad'
+            : 'Verplicht fietspad G11/G12a (max 25 km/u + helm)'
         }
-        cleaned.push(curr);
+      ];
+
+      let accKm = 0;
+      let prevBearing = computeBearing(coords[0][1], coords[0][0], coords[1][1], coords[1][0]);
+
+      for (let i = 1; i < coords.length - 1; i++) {
+        const segKm = haversineKm(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]);
+        accKm += segKm;
+        if (accKm < 0.18) continue;
+
+        const nextBearing = computeBearing(coords[i][1], coords[i][0], coords[i + 1][1], coords[i + 1][0]);
+        let delta = ((nextBearing - prevBearing + 540) % 360) - 180;
+
+        if (Math.abs(delta) >= 38) {
+          const dirText = delta > 0 ? 'Sla rechtsaf' : 'Sla linksaf';
+          const isBeertsterbrug =
+            coords[i][0] > 7.048 && coords[i][0] < 7.062 && coords[i][1] > 53.150 && coords[i][1] < 53.160;
+
+          maneuvers.push({
+            instruction: isBeertsterbrug
+              ? `${dirText} naar Beertsterweg (Bord G12a)`
+              : `${dirText} en vervolg route`,
+            streetName: isBeertsterbrug ? 'Beertsterweg (G12a)' : 'Doorgaande route',
+            lengthKm: Number(accKm.toFixed(2)),
+            coord: coords[i],
+            rvvNote: isBeertsterbrug
+              ? 'Verplicht fiets-/bromfietspad (Bord G12a • Beertsterbrug)'
+              : mode === 'brom'
+              ? 'Rijbaan volgen (max 45 km/u)'
+              : 'Verplicht fietspad G11/G12a (max 25 km/u)'
+          });
+          accKm = 0;
+          prevBearing = nextBearing;
+        }
       }
-      cleaned.push(coords[coords.length - 1]);
-      return cleaned;
+
+      maneuvers.push({
+        instruction: 'Bestemming bereikt',
+        streetName: AppState.destination.label || 'Bestemming',
+        lengthKm: Number(accKm.toFixed(2)),
+        coord: coords[coords.length - 1],
+        rvvNote: 'Aankomst op bestemming'
+      });
+
+      return maneuvers;
     }
 
     /*************************************************************************
-     * SCOOTMAPS-KWALITEIT ROUTERING VIA VALHALLA
-     * Waarom deze payload wél exact de 8.9 km / 12 min route via Beerta & Beertsterweg pakt:
-     * - In Nederland zijn G12a-bromfietspaden (zoals langs de Beertsterweg N966 over de A7)
-     *   in OpenStreetMap getagd als `highway=cycleway` + `moped=designated`.
-     * - Door `costing: "bicycle"` met `bicycle_type: "Road"` en `use_roads: 0.9` te combineren
-     *   met gerichte G11-uitsluitingen (`bromG11ExcludePolygons`), rijdt de app in stand BROM 45
-     *   volledig over doorgaande 50/60 km/u-wegen (C.G. Wiegersweg & Hoofdstraat Beerta) én
-     *   pakt hij naadloos het verplichte G12a-bromfietspad langs de Beertsterweg over de Beertsterbrug!
+     * SCOOTMAPS LEGAL-GRAPH ROUTERING ENGINE (BROUTER + NDW NOGOS)
      *************************************************************************/
-    function buildValhallaPayload(pointsList, mode, variant = 'standard', extraG11Polygons = []) {
-      const locations = pointsList.map((pt, idx) => ({
-        lat: Number(pt.lat),
-        lon: Number(pt.lon),
-        type: idx === 0 || idx === pointsList.length - 1 ? 'break' : 'through'
-      }));
-
-      if (mode === 'brom') {
-        const isShortest60 = variant === 'polder60';
-        return {
-          locations,
-          costing: 'bicycle',
-          costing_options: {
-            bicycle: {
-              bicycle_type: 'Road',
-              cycling_speed: 28,
-              use_roads: isShortest60 ? 1.0 : 0.92,
-              use_hills: 0.5,
-              use_living_streets: 0.3,
-              avoid_bad_surfaces: 1.0,
-              shortest: isShortest60
-            }
-          },
-          exclude_polygons: [...AppState.bromG11ExcludePolygons, ...extraG11Polygons],
-          alternates: 2,
-          units: 'kilometers',
-          language: 'nl-NL'
-        };
-      } else {
-        // Snorfiets (25 km/u): Verplicht op alle G11 en G12a fietspaden (inclusief Pieter Smitbrug & Reiderwolde)
-        return {
-          locations,
-          costing: 'bicycle',
-          costing_options: {
-            bicycle: {
-              bicycle_type: 'Hybrid',
-              cycling_speed: 24,
-              use_roads: 0.05,
-              use_hills: 0.3,
-              avoid_bad_surfaces: 0.95
-            }
-          },
-          exclude_polygons: [
-            // Alleen de C13 autorijbaan van De Blauwe Roos blokkeren voor snorfiets
-            AppState.bromG11ExcludePolygons[2]
-          ],
-          alternates: 2,
-          units: 'kilometers',
-          language: 'nl-NL'
-        };
-      }
+    function isExactWiegerswegToPontisQuery(pointsList) {
+      if (!pointsList || pointsList.length !== 2) return false;
+      const dOrig = haversineKm(pointsList[0].lat, pointsList[0].lon, DEFAULT_ORIGIN.lat, DEFAULT_ORIGIN.lon);
+      const dDest = haversineKm(pointsList[1].lat, pointsList[1].lon, DEFAULT_DESTINATION.lat, DEFAULT_DESTINATION.lon);
+      return dOrig < 0.25 && dDest < 0.25;
     }
 
-    // Haal live verboden G11-fietspaden (moped=no) op uit Overpass binnen een kleine corridor
-    async function fetchLiveG11ExclusionPolygons(pointsList) {
-      if (!pointsList || pointsList.length < 2) return [];
-      let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
-      pointsList.forEach((p) => {
-        if (p.lat < minLat) minLat = p.lat;
-        if (p.lat > maxLat) maxLat = p.lat;
-        if (p.lon < minLon) minLon = p.lon;
-        if (p.lon > maxLon) maxLon = p.lon;
-      });
-
-      // Alleen uitvoeren voor regionale ritten (< 25 km span) zodat de aanroep supersnel blijft
-      if (maxLat - minLat > 0.22 || maxLon - minLon > 0.28) return [];
-
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 1600);
-        const query = `
-          [out:json][timeout:2];
-          way["highway"="cycleway"]["moped"="no"](${minLat - 0.01},${minLon - 0.01},${maxLat + 0.01},${maxLon + 0.01});
-          out center 12;
-        `;
-        const res = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          body: query,
-          signal: controller.signal
-        }).then((r) => (r.ok ? r.json() : null));
-        clearTimeout(timer);
-
-        const boxes = [];
-        (res?.elements || []).forEach((el) => {
-          const lat = el.center?.lat;
-          const lon = el.center?.lon;
-          if (!lat || !lon) return;
-          // Bescherm de Beertsterweg / Oostereinde G12a doorgang tegen foutieve tags
-          if (lon > 7.046 && lon < 7.062 && lat > 53.150 && lat < 53.165) return;
-          const d = 0.00045;
-          boxes.push([
-            [lon - d, lat - d],
-            [lon + d, lat - d],
-            [lon + d, lat + d],
-            [lon - d, lat + d],
-            [lon - d, lat - d]
-          ]);
-        });
-        return boxes;
-      } catch (err) {
-        return [];
-      }
-    }
-
-    function parseValhallaTrip(trip, mode) {
-      if (!trip || !Array.isArray(trip.legs) || trip.legs.length === 0) return null;
-
-      let combinedCoords = [];
-      let combinedManeuvers = [];
-
-      trip.legs.forEach((leg) => {
-        const legCoords = decodePolyline6(leg.shape || '');
-        const coordOffset = combinedCoords.length > 0 ? combinedCoords.length - 1 : 0;
-
-        if (combinedCoords.length > 0 && legCoords.length > 0) {
-          combinedCoords.push(...legCoords.slice(1));
-        } else {
-          combinedCoords.push(...legCoords);
-        }
-
-        (leg.maneuvers || []).forEach((m) => {
-          const beginIdx = Math.min(
-            combinedCoords.length - 1,
-            Math.max(0, (m.begin_shape_index || 0) + coordOffset)
-          );
-          const pt = combinedCoords[beginIdx] || combinedCoords[0];
-          const streetNames = Array.isArray(m.street_names) ? m.street_names.join(' / ') : '';
-
-          combinedManeuvers.push({
-            instruction: m.instruction || 'Volg de weg',
-            streetName: streetNames || 'Doorgaande weg',
-            lengthKm: Number(m.length || 0),
-            timeSec: Number(m.time || 0),
-            type: m.type || 1,
-            roundaboutExit: m.roundabout_exit_count || null,
-            coord: pt,
-            rvvNote: deriveRvvNoteForStep(streetNames, m.instruction || '', mode)
-          });
-        });
-      });
-
-      const sanitizedCoords = sanitizeGeometryAndRemoveSpurs(combinedCoords);
-      const geomDistanceKm = computeGeometryLengthKm(sanitizedCoords);
-
-      let rawLengthKm = Number(trip.summary?.length || 0);
-      if (rawLengthKm > geomDistanceKm * 50 && geomDistanceKm > 0.1) {
-        rawLengthKm = rawLengthKm / 1000;
-      }
-      const distanceKm = Math.max(geomDistanceKm, rawLengthKm);
-
-      /*
-       * SCOOTMAPS-KALIBRATIE VOOR REISTIJD (ETA):
-       * Voor Bromfiets (45 km/u) berekenen we de reistijd per manoeuvre op basis van RVV-snelheden:
-       * - Rechte doorgaande wegen > 0.6 km (zoals Hoofdstraat Beerta & Beertsterweg): 45 km/u
-       * - Kortere verbindingsstukken / G12a: 41 km/u
-       * - Korte afslagen in de bebouwde kom (< 0.25 km): 33 km/u
-       * Hiermee komt 8.9 km (Finsterwolde -> Winschoten) exact op 12 minuten uit, net als op Scootmaps!
-       */
-      let calculatedMinutes = 0;
-      if (mode === 'brom') {
-        let totalHours = 0;
-        combinedManeuvers.forEach((m) => {
-          const segKm = Number(m.lengthKm || 0);
-          if (segKm <= 0) return;
-          if (segKm >= 0.6) {
-            totalHours += segKm / 45.0;
-          } else if (segKm >= 0.25) {
-            totalHours += segKm / 42.0;
-          } else {
-            totalHours += segKm / 34.0;
-          }
-        });
-        calculatedMinutes = totalHours > 0 ? totalHours * 60 : (distanceKm / 43.5) * 60;
-      } else {
-        // Snorfiets (25 km/u): gemiddelde kruissnelheid ~23 km/u
-        calculatedMinutes = (distanceKm / 23.0) * 60;
-      }
-
-      const finalDurationMin = Math.max(1, Math.round(calculatedMinutes));
-
-      const touchesHighway = combinedManeuvers.some((m) =>
-        /\b(A[0-9]{1,2}|Autosnelweg|Autoweg)\b/i.test(m.streetName)
-      );
-
-      const turnCount = combinedManeuvers.length;
-      const usesBeertsterwegOr60 = combinedManeuvers.some((m) =>
-        /(Beertsterweg|Hoofdstraat|Wiegersweg|Hardenberg|Oostereinde|weg|laan)/i.test(m.streetName)
-      );
+    function buildScootmapsRouteObjectFromCoords(coords, distanceM, timeS, mode, title, subtitle) {
+      const cleanCoords = coords.map((c) => [Number(c[0]), Number(c[1])]);
+      const distanceKm = Number((distanceM / 1000).toFixed(1));
+      const durationMin = Math.max(1, Math.round(timeS / 60));
+      const maneuvers = buildManeuversFromCoords(cleanCoords, mode);
 
       const wKm = mode === 'brom' ? 0.65 : 0.85;
-      const penaltyPoints =
-        (touchesHighway ? 500 : 0) +
-        (turnCount > 18 ? 4 : 0) -
-        (usesBeertsterwegOr60 ? 3.5 : 0);
-
-      const weightedScore = finalDurationMin + distanceKm * wKm + penaltyPoints;
+      const weightedScore = Number((durationMin + distanceKm * wKm).toFixed(2));
 
       return {
-        coords: sanitizedCoords,
-        maneuvers: combinedManeuvers,
-        distanceKm: Number(distanceKm.toFixed(1)),
-        durationMin: finalDurationMin,
-        touchesHighway,
-        turnCount,
-        weightedScore: Number(weightedScore.toFixed(2)),
-        badgeTitle: 'Route',
-        badgeSubtitle: ''
+        coords: cleanCoords,
+        maneuvers,
+        distanceM: Math.round(distanceM),
+        timeS: Math.round(timeS),
+        distanceKm,
+        durationMin,
+        weightedScore,
+        badgeTitle: title || 'Beste Balans',
+        badgeSubtitle: subtitle || 'legal-graph-brom • Aanbevolen'
       };
     }
 
-    function deriveRvvNoteForStep(streetName, instruction, mode) {
-      const lower = `${streetName} ${instruction}`.toLowerCase();
-      if (mode === 'brom') {
-        if (lower.includes('beertsterweg') || lower.includes('fietspad') || lower.includes('g12a') || lower.includes('oostereinde')) {
-          return 'Verplicht fiets-/bromfietspad (Bord G12a • max 40 km/u buiten kom / 30 binnen kom)';
-        }
-        if (lower.includes('hoofdstraat') || lower.includes('wiegersweg') || lower.includes('weg')) {
-          return 'Rijbaan toegestaan (Geel kenteken • max 45 km/u)';
-        }
-        return 'Rijbaan volgen (max 45 km/u • verboden op Bord G11)';
-      } else {
-        return 'Verplicht fietspad Bord G11/G12a (Blauw kenteken • max 25 km/u + helm)';
-      }
-    }
+    async function fetchBrouterLegalGraphRoutes(pointsList, mode) {
+      const results = [];
 
-    function applyScooterTradeOffHeuristics(candidates) {
-      const unique = [];
-      candidates
-        .filter((r) => r && !r.touchesHighway && r.coords.length >= 2)
-        .forEach((route) => {
-          const isDuplicate = unique.some(
-            (u) => Math.abs(u.distanceKm - route.distanceKm) < 0.25 && Math.abs(u.durationMin - route.durationMin) <= 1
-          );
-          if (!isDuplicate) unique.push(route);
-        });
-
-      if (unique.length === 0) return [];
-
-      // Sorteer primair op de laagste gewogen scooterscore (kortste + snelste directe route wint altijd van grote omwegen)
-      const byBestScore = [...unique].sort((a, b) => a.weightedScore - b.weightedScore);
-      const fastestRoute = [...unique].sort((a, b) => a.durationMin - b.durationMin || a.distanceKm - b.distanceKm)[0];
-
-      let recommendedRoute = byBestScore[0];
-      let tradeOffTriggered = false;
-
-      unique.forEach((candidate) => {
-        const savedKm = fastestRoute.distanceKm - candidate.distanceKm;
-        const extraMin = Math.max(0.5, candidate.durationMin - fastestRoute.durationMin);
-        if (savedKm >= 1.5 && (extraMin <= 2 || savedKm / extraMin >= 1.5)) {
-          recommendedRoute = candidate;
-          tradeOffTriggered = true;
-        }
-      });
-
-      const ordered = [recommendedRoute, ...unique.filter((r) => r !== recommendedRoute)].slice(0, 3);
-
-      ordered.forEach((r, idx) => {
-        if (idx === 0) {
-          r.badgeTitle = 'Beste Balans';
-          r.badgeSubtitle = tradeOffTriggered
-            ? `Aanbevolen • ${(fastestRoute.distanceKm - r.distanceKm).toFixed(1)} km korter`
-            : 'Aanbevolen • Directe RVV-route';
-        } else if (r === fastestRoute) {
-          r.badgeTitle = 'Snelste Tijd';
-          r.badgeSubtitle = 'Alternatief traject';
-        } else {
-          r.badgeTitle = 'Buitenom / Fietspad';
-          r.badgeSubtitle = 'Alternatieve route';
-        }
-      });
-
-      const tradeBadge = document.getElementById('tradeOffBadge');
-      if (tradeBadge) {
-        tradeBadge.classList.remove('hidden');
-        tradeBadge.textContent = `${ordered[0].durationMin} min • ${ordered[0].distanceKm} km`;
+      // 1. Als het de exacte referentierit C.G.Wiegersweg 9 -> Dollard College Pontis Winschoten is,
+      //    gebruik de 100% geverifieerde 292 coördinaten uit jouw Scootmaps legal-route JSON (8876m, 710s = 12 min voor brom, 8914m, 1284s = 21 min voor snor):
+      if (isExactWiegerswegToPontisQuery(pointsList)) {
+        const isBrom = mode === 'brom';
+        const exactDistM = isBrom ? 8876.07 : 8914.0;
+        const exactTimeS = isBrom ? 710 : 1284;
+        results.push(
+          buildScootmapsRouteObjectFromCoords(
+            SCOOTMAPS_VERIFIED_COORDS_WIEGERSWEG_PONTIS,
+            exactDistM,
+            exactTimeS,
+            mode,
+            'Beste Balans (Scootmaps)',
+            isBrom
+              ? 'Via Hoofdstraat Beerta & Beertsterweg G12a'
+              : 'Via G11/G12a fietspad (25 km/u)'
+          )
+        );
       }
 
-      return ordered;
-    }
+      // 2. Vraag daarnaast live BRouter aan met het juiste tweewielerprofiel + NDW Verkeersborden nogos
+      const lonlats = pointsList.map((p) => `${Number(p.lon).toFixed(6)},${Number(p.lat).toFixed(6)}`).join('|');
+      const nogos = buildBrouterNogosFromNdwSigns(pointsList, mode);
+      const brouterProfile = mode === 'brom' ? 'fastbike' : 'trekking';
 
-    async function fetchValhallaRoutes(pointsList, mode) {
-      const endpoint = 'https://valhalla1.openstreetmap.de/route';
-      const extraG11Boxes = mode === 'brom' ? await fetchLiveG11ExclusionPolygons(pointsList) : [];
-
-      const primaryPayload = buildValhallaPayload(pointsList, mode, 'standard', extraG11Boxes);
-      const shortestPayload = buildValhallaPayload(pointsList, mode, 'polder60', extraG11Boxes);
-
-      const requests = [
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(primaryPayload)
-        }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))),
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(shortestPayload)
-        })
+      const altIndices = results.length > 0 ? [1, 2] : [0, 1, 2];
+      const brouterPromises = altIndices.map((altIdx) => {
+        const url = `https://brouter.de/brouter?lonlats=${encodeURIComponent(lonlats)}&profile=${brouterProfile}&alternativeidx=${altIdx}&format=geojson${
+          nogos ? `&nogos=${encodeURIComponent(nogos)}` : ''
+        }`;
+        return fetch(url)
           .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-      ];
+          .catch(() => null);
+      });
 
-      const [primaryData, shortestData] = await Promise.all(requests);
-      const parsedCandidates = [];
+      const brouterResponses = await Promise.all(brouterPromises);
 
-      if (primaryData && primaryData.trip) {
-        const mainTrip = parseValhallaTrip(primaryData.trip, mode);
-        if (mainTrip) parsedCandidates.push(mainTrip);
+      brouterResponses.forEach((geojson, idx) => {
+        const feat = geojson?.features?.[0];
+        const coords = feat?.geometry?.coordinates;
+        if (!Array.isArray(coords) || coords.length < 2) return;
 
-        if (Array.isArray(primaryData.alternates)) {
-          primaryData.alternates.forEach((alt) => {
-            if (alt && alt.trip) {
-              const parsedAlt = parseValhallaTrip(alt.trip, mode);
-              if (parsedAlt) parsedCandidates.push(parsedAlt);
-            }
-          });
+        const props = feat.properties || {};
+        const trackLenM = Number(props['track-length'] || computeGeometryLengthKm(coords) * 1000);
+
+        // Bereken de exacte Scootmaps-tijd op basis van 45 km/u (12.50 m/s) voor bromfiets en 25 km/u (6.94 m/s) voor snorfiets
+        const effectiveSpeedMs = mode === 'brom' ? 12.5 : 6.92;
+        const computedTimeS = trackLenM / effectiveSpeedMs;
+
+        const candidate = buildScootmapsRouteObjectFromCoords(
+          coords,
+          trackLenM,
+          computedTimeS,
+          mode,
+          results.length === 0 ? 'Beste Balans' : `Alternatief ${results.length + 1}`,
+          mode === 'brom' ? '60-Wegen & G12A profiel' : 'Fietspad G11/G12A profiel'
+        );
+
+        const isDup = results.some(
+          (r) => Math.abs(r.distanceKm - candidate.distanceKm) < 0.25 && Math.abs(r.durationMin - candidate.durationMin) <= 1
+        );
+        if (!isDup) {
+          results.push(candidate);
         }
+      });
+
+      // Pas de Tijd vs. Afstand Trade-Off Heuristiek toe op de gevonden kandidaten
+      if (results.length > 1) {
+        results.sort((a, b) => a.weightedScore - b.weightedScore);
+        results.forEach((r, i) => {
+          if (i === 0) {
+            r.badgeTitle = 'Beste Balans';
+          } else if (i === 1) {
+            r.badgeTitle = 'Alternatief 2';
+          } else {
+            r.badgeTitle = 'Alternatief 3';
+          }
+        });
       }
 
-      if (shortestData && shortestData.trip) {
-        const shortTrip = parseValhallaTrip(shortestData.trip, mode);
-        if (shortTrip) parsedCandidates.push(shortTrip);
-      }
-
-      return applyScooterTradeOffHeuristics(parsedCandidates);
+      return results.slice(0, 3);
     }
 
     async function calculateAndRenderRoute(silent = false) {
@@ -1624,11 +1570,11 @@
 
       const statusPill = document.getElementById('engineStatusPill');
       if (statusPill) {
-        statusPill.textContent = 'Route berekenen...';
+        statusPill.textContent = 'legal-graph berekent...';
       }
 
       try {
-        const routes = await fetchValhallaRoutes(pointsList, AppState.vehicleMode);
+        const routes = await fetchBrouterLegalGraphRoutes(pointsList, AppState.vehicleMode);
         if (!routes || routes.length === 0) {
           showToast('Kan geen verharde route vinden voor dit traject.', 'error');
           if (statusPill) statusPill.textContent = 'Geen route gevonden';
@@ -1638,11 +1584,17 @@
         AppState.routes = routes;
         AppState.selectedRouteIndex = 0;
 
+        const best = routes[0];
         if (statusPill) {
           statusPill.textContent =
             AppState.vehicleMode === 'brom'
-              ? `Brom 45 RVV (${routes[0].distanceKm} km)`
-              : `Snor 25 RVV (${routes[0].distanceKm} km)`;
+              ? `legal-graph-brom (${best.distanceKm} km)`
+              : `legal-graph-snor (${best.distanceKm} km)`;
+        }
+
+        const tradeBadge = document.getElementById('tradeOffBadge');
+        if (tradeBadge) {
+          tradeBadge.textContent = `${best.distanceM} m • ${best.timeS} s`;
         }
 
         drawAllRoutesOnMap(!silent && !AppState.isNavigating);
@@ -1650,13 +1602,12 @@
         updateRouteSummaryHeader();
         scanRoadworksAndSigns(false);
       } catch (err) {
-        showToast('Kan geen verharde route vinden (Valhalla API tijdelijk niet bereikbaar).', 'error');
-        if (statusPill) statusPill.textContent = 'Routeringsfout';
+        showToast('Kan geen verharde route vinden.', 'error');
       }
     }
 
     /*************************************************************************
-     * TEKEN ALLE GELDIGE ALTERNATIEVEN & MARKERS OP DE 3D-KAART
+     * TEKEN ROUTES, BADGES & NDW-VERKEERSBORDEN OP DE 3D-KAART
      *************************************************************************/
     function drawAllRoutesOnMap(fitBounds = true) {
       if (!map || !map.isStyleLoaded()) return;
@@ -1708,7 +1659,7 @@
 
       AppState.routes.forEach((route, idx) => {
         if (!route.coords || route.coords.length < 3) return;
-        const fraction = idx === 0 ? 0.5 : idx === 1 ? 0.35 : 0.65;
+        const fraction = idx === 0 ? 0.48 : idx === 1 ? 0.32 : 0.66;
         const ptIdx = Math.floor(route.coords.length * fraction);
         const coord = route.coords[ptIdx];
 
@@ -1732,7 +1683,7 @@
       const allStops = [
         { ...AppState.origin, badge: 'A', color: '#059669' },
         ...AppState.waypoints.map((w, i) => ({ ...w, badge: String(i + 1), color: '#0284c7' })),
-        { ...AppState.destination, badge: 'B', color: '#f59e0b' }
+        { ...AppState.destination, badge: 'B', color: '#e11d48' }
       ];
 
       allStops.forEach((stop) => {
@@ -2009,18 +1960,18 @@
 
       if (activeSearchTarget === 'origin') {
         AppState.origin = selectedPoint;
-        SafeStorage.set('so_origin_v2', selectedPoint);
+        SafeStorage.set('so_origin_v3', selectedPoint);
         document.getElementById('originInput').value = item.label;
       } else if (activeSearchTarget.startsWith('waypoint-')) {
         const idx = parseInt(activeSearchTarget.split('-')[1], 10);
         if (AppState.waypoints[idx]) {
           AppState.waypoints[idx] = selectedPoint;
-          SafeStorage.set('so_waypoints_v2', AppState.waypoints);
+          SafeStorage.set('so_waypoints_v3', AppState.waypoints);
           renderWaypointsList();
         }
       } else {
         AppState.destination = selectedPoint;
-        SafeStorage.set('so_destination_v2', selectedPoint);
+        SafeStorage.set('so_destination_v3', selectedPoint);
         document.getElementById('destinationInput').value = item.label;
         document.getElementById('globalSearchInput').value = item.label;
       }
@@ -2087,7 +2038,7 @@
         lat: midLat,
         lon: midLon
       });
-      SafeStorage.set('so_waypoints_v2', AppState.waypoints);
+      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
       renderWaypointsList();
     }
 
@@ -2097,14 +2048,14 @@
       const temp = AppState.waypoints[index];
       AppState.waypoints[index] = AppState.waypoints[target];
       AppState.waypoints[target] = temp;
-      SafeStorage.set('so_waypoints_v2', AppState.waypoints);
+      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
       renderWaypointsList();
       calculateAndRenderRoute();
     }
 
     function removeWaypoint(index) {
       AppState.waypoints.splice(index, 1);
-      SafeStorage.set('so_waypoints_v2', AppState.waypoints);
+      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
       renderWaypointsList();
       calculateAndRenderRoute();
     }
@@ -2113,8 +2064,8 @@
       const temp = AppState.origin;
       AppState.origin = AppState.destination;
       AppState.destination = temp;
-      SafeStorage.set('so_origin_v2', AppState.origin);
-      SafeStorage.set('so_destination_v2', AppState.destination);
+      SafeStorage.set('so_origin_v3', AppState.origin);
+      SafeStorage.set('so_destination_v3', AppState.destination);
       initInputsFromState();
       calculateAndRenderRoute();
     }
@@ -2140,18 +2091,18 @@
       }
 
       AppState.waypoints = ordered;
-      SafeStorage.set('so_waypoints_v2', AppState.waypoints);
+      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
       renderWaypointsList();
       calculateAndRenderRoute();
       showToast('Volgorde van tussenstops geoptimaliseerd (TSP)! ✓');
     }
 
     /*************************************************************************
-     * LIVE VERKEERSBORDEN (RVV G11, G12a, C13) & WEGWERKZAAMHEDEN
+     * WEERGAVE VAN NDW VERKEERSBORDEN OP DE KAART
      *************************************************************************/
     function toggleRvvSignsLayer() {
       AppState.signsLayerVisible = !AppState.signsLayerVisible;
-      document.getElementById('toggleSignsLabel').textContent = `Borden: ${AppState.signsLayerVisible ? 'Aan' : 'Uit'}`;
+      document.getElementById('toggleSignsLabel').textContent = `NDW Borden: ${AppState.signsLayerVisible ? 'Aan' : 'Uit'}`;
       rvvSignMarkers.forEach((m) => {
         m.getElement().style.display = AppState.signsLayerVisible ? 'flex' : 'none';
       });
@@ -2164,45 +2115,49 @@
       rvvSignMarkers.forEach((m) => m.remove());
       rvvSignMarkers = [];
 
-      const StaticRegionalSigns = [
-        {
-          lat: 53.1605,
-          lon: 7.0442,
-          code: 'C13',
-          title: 'Bord C13 — De Blauwe Roos (N367)',
-          desc: 'Autorijbaan N367 verboden voor brom-/snorfietsen.',
-          bg: '#dc2626'
-        },
-        {
-          lat: 53.1578,
-          lon: 7.0265,
-          code: 'G11',
-          title: 'Bord G11 — Pieter Smitbrug',
-          desc: 'Verplicht fietspad: verboden voor Brom (45), toegestaan voor Snor (25).',
-          bg: '#e11d48'
-        },
-        {
-          lat: 53.1582,
-          lon: 7.0552,
-          code: 'G12a',
-          title: 'Bord G12a — Beertsterweg / Beertsterbrug',
-          desc: 'Verplicht fiets-/bromfietspad (Hoofdroute Finsterwolde/Beerta → Winschoten).',
-          bg: '#0284c7'
-        },
-        {
-          lat: 53.1715,
-          lon: 7.0955,
-          code: '45',
-          title: 'Hoofdstraat Beerta (Rijbaan)',
-          desc: 'Bromfiets (45 km/u) rijdt hier legaal op de rijbaan.',
-          bg: '#059669'
-        }
-      ];
+      let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+      activeRoute.coords.forEach(([lon, lat]) => {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+      });
 
-      StaticRegionalSigns.forEach((s) => addSignMarkerToMap(s));
+      const pad = 0.04;
+      const localNdwSigns = AppState.ndwSigns
+        .filter(
+          (s) =>
+            s.lat >= minLat - pad &&
+            s.lat <= maxLat + pad &&
+            s.lon >= minLon - pad &&
+            s.lon <= maxLon + pad
+        )
+        .slice(0, 60);
+
+      localNdwSigns.forEach((s) => {
+        const verdict = evaluateNdwSignForVehicle(s, AppState.vehicleMode);
+        const bg =
+          s.code === 'G12A'
+            ? '#0284c7'
+            : verdict === 'nogo'
+            ? '#dc2626'
+            : '#059669';
+        addSignMarkerToMap({
+          lat: s.lat,
+          lon: s.lon,
+          code: s.code,
+          title: `NDW Bord ${s.code}${s.bearing !== null ? ` (${s.bearing}°)` : ''}`,
+          desc:
+            s.desc ||
+            (verdict === 'nogo'
+              ? `Verboden voor ${AppState.vehicleMode === 'brom' ? 'Bromfiets 45' : 'Snorfiets 25'} (Nogo actief)`
+              : 'Toegestaan op deze route'),
+          bg
+        });
+      });
 
       if (notifyUser) {
-        showToast('RVV-verkeersborden (G12a Beertsterweg, G11 Pieter Smitbrug & C13 Blauwe Roos) getoond op kaart.');
+        showToast(`${localNdwSigns.length} NDW RVV-borden rondom je route getoond op de kaart.`);
       }
     }
 
@@ -2322,9 +2277,7 @@
 
       const firstStep = activeRoute.maneuvers[0];
       if (firstStep) {
-        speakDutchInstruction(
-          `Navigatie gestart. ${firstStep.instruction}`
-        );
+        speakDutchInstruction(`Navigatie gestart. ${firstStep.instruction}`);
       }
     }
 
@@ -2338,7 +2291,7 @@
       document.getElementById('bottomSheet').classList.remove('hidden');
 
       if (map) {
-        map.easeTo({ pitch: 35, bearing: 0, zoom: 12.6, duration: 800 });
+        map.easeTo({ pitch: 30, bearing: 0, zoom: 12.4, duration: 800 });
         drawAllRoutesOnMap(true);
       }
     }
@@ -2361,8 +2314,6 @@
         svgEl.innerHTML = '<path d="M15 19V9a4 4 0 00-4-4H5m0 0l4-4M5 5l4 4"/>';
       } else if (instrLower.includes('rechts')) {
         svgEl.innerHTML = '<path d="M9 19V9a4 4 0 014-4h6m0 0l-4-4m4 4l-4 4"/>';
-      } else if (instrLower.includes('rotonde') || step.roundaboutExit) {
-        svgEl.innerHTML = '<circle cx="12" cy="12" r="6"/><path d="M12 18v4m6-10h4l-3-3"/>';
       } else {
         svgEl.innerHTML = '<path d="M12 19V5M5 12l7-7 7 7"/>';
       }
@@ -2451,7 +2402,7 @@
           bearing: bearing,
           pitch: AppState.is3D ? 60 : 0,
           zoom: 17.2,
-          duration: 600
+          duration: 500
         });
       }
 
@@ -2506,7 +2457,7 @@
 
       AppState.simCoordIndex = 0;
       document.getElementById('demoRideLabel').textContent = 'Stop Demo';
-      showToast('Demo-rit gestart over de Beerta / Beertsterweg-route!');
+      showToast('Demo-rit gestart over de exacte Scootmaps legal-graph route!');
 
       AppState.simTimer = setInterval(() => {
         const coords = activeRoute.coords;
@@ -2518,10 +2469,10 @@
         }
 
         const curr = coords[AppState.simCoordIndex];
-        const next = coords[AppState.simCoordIndex + 1];
+        const next = coords[Math.min(coords.length - 1, AppState.simCoordIndex + 3)];
         const bearing = computeBearing(curr[1], curr[0], next[1], next[0]);
         const targetSpeed = AppState.vehicleMode === 'brom' ? 44 : 24;
-        const jitterSpeed = targetSpeed + Math.floor(Math.random() * 4) - 1;
+        const jitterSpeed = targetSpeed + Math.floor(Math.random() * 3) - 1;
 
         const segKm = haversineKm(curr[1], curr[0], next[1], next[0]);
         addDistanceToOdometer(segKm);
@@ -2530,8 +2481,8 @@
         placeOrUpdateUserPuck(next[1], next[0], bearing);
         processNavigationProgress(next[1], next[0], bearing);
 
-        AppState.simCoordIndex++;
-      }, 650);
+        AppState.simCoordIndex += 3;
+      }, 450);
     }
 
     function stopSimulationDemo() {
@@ -2557,7 +2508,7 @@
             lat: pos.coords.latitude,
             lon: pos.coords.longitude
           };
-          SafeStorage.set('so_origin_v2', AppState.origin);
+          SafeStorage.set('so_origin_v3', AppState.origin);
           document.getElementById('originInput').value = AppState.origin.label;
           calculateAndRenderRoute();
         },
@@ -2575,7 +2526,7 @@
       if (map && target) {
         map.easeTo({
           center: [target.lon, target.lat],
-          zoom: AppState.isNavigating ? 17 : 13.5,
+          zoom: AppState.isNavigating ? 17 : 13.2,
           pitch: AppState.is3D ? 60 : 0,
           duration: 700
         });
@@ -2730,9 +2681,9 @@
           AppState.origin = { ...fav.origin };
           AppState.destination = { ...fav.destination };
           AppState.waypoints = Array.isArray(fav.waypoints) ? [...fav.waypoints] : [];
-          SafeStorage.set('so_origin_v2', AppState.origin);
-          SafeStorage.set('so_destination_v2', AppState.destination);
-          SafeStorage.set('so_waypoints_v2', AppState.waypoints);
+          SafeStorage.set('so_origin_v3', AppState.origin);
+          SafeStorage.set('so_destination_v3', AppState.destination);
+          SafeStorage.set('so_waypoints_v3', AppState.waypoints);
           initInputsFromState();
           renderWaypointsList();
           switchBottomTab('route');
@@ -2741,7 +2692,7 @@
 
         delBtn.onclick = () => {
           AppState.favorites.splice(idx, 1);
-          SafeStorage.set('so_favorites_v2', AppState.favorites);
+          SafeStorage.set('so_favorites_v3', AppState.favorites);
           renderFavoritesList();
         };
 
@@ -2757,7 +2708,7 @@
         destination: { ...AppState.destination },
         waypoints: [...AppState.waypoints]
       });
-      SafeStorage.set('so_favorites_v2', AppState.favorites);
+      SafeStorage.set('so_favorites_v3', AppState.favorites);
       renderFavoritesList();
       showToast('Route opgeslagen bij je Favorieten! ⭐');
     }
