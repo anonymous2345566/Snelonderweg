@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
-  <title>SnelOnderweg.nl — Scooter & Bromfiets Navigatie (Legal-Graph + NDW RVV 1990)</title>
+  <title>SnelOnderweg.nl — Scooter & Bromfiets Navigatie</title>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -37,7 +37,7 @@
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
     html, body {
       margin: 0;
@@ -60,14 +60,14 @@
     }
 
     .custom-scroll::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
+      width: 4px;
+      height: 4px;
     }
     .custom-scroll::-webkit-scrollbar-track {
       background: transparent;
     }
     .custom-scroll::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.4);
+      background: rgba(148, 163, 184, 0.3);
       border-radius: 9999px;
     }
 
@@ -79,252 +79,157 @@
     .maplibregl-ctrl-bottom-left,
     .maplibregl-ctrl-bottom-right {
       z-index: 5 !important;
+      opacity: 0.65;
     }
 
     @keyframes overspeedPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8), 0 0 25px 6px rgba(239, 68, 68, 0.55); }
-      50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0), 0 0 35px 12px rgba(239, 68, 68, 0.85); }
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.75); }
+      50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
     }
     .overspeed-glow {
       animation: overspeedPulse 1.1s infinite;
       border-color: #ef4444 !important;
-      background: linear-gradient(135deg, #7f1d1d, #991b1b) !important;
+      background: #991b1b !important;
       color: #ffffff !important;
     }
 
     @keyframes gpsPulse {
-      0% { transform: scale(1); opacity: 0.85; }
-      70% { transform: scale(2.4); opacity: 0; }
-      100% { transform: scale(2.4); opacity: 0; }
+      0% { transform: scale(1); opacity: 0.75; }
+      70% { transform: scale(2.2); opacity: 0; }
+      100% { transform: scale(2.2); opacity: 0; }
     }
     .gps-puck-ring {
       position: absolute;
-      inset: -8px;
+      inset: -6px;
       border-radius: 9999px;
       background: rgba(5, 150, 105, 0.45);
       animation: gpsPulse 2s infinite;
     }
-
-    .route-map-badge {
-      background: rgba(15, 23, 42, 0.92);
-      color: #f8fafc;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      font-size: 12px;
-      font-weight: 700;
-      border: 2px solid #64748b;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-      cursor: pointer;
-      white-space: nowrap;
-      transition: transform 0.15s ease, border-color 0.15s ease;
-    }
-    .route-map-badge.active {
-      background: #059669;
-      color: #ffffff;
-      border-color: #ffffff;
-      transform: scale(1.06);
-      z-index: 15;
-    }
   </style>
 </head>
-<body class="text-slate-100 font-sans">
+<body class="text-slate-800 font-sans">
 
-  <!-- 3D / 2D KAART CONTAINER -->
+  <!-- KAART CONTAINER -->
   <div id="map"></div>
 
-  <!-- Verborgen File-Input om een volledige lokale ndw-signs.json in te kunnen laden -->
+  <!-- Verborgen File-Input voor optionele ndw-signs.json upload via instellingen -->
   <input id="ndwFileInput" type="file" accept=".json,application/json" class="hidden" onchange="handleNdwJsonFileUpload(event)" />
 
-  <!-- TOAST MELDINGEN -->
-  <div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-[92%] max-w-md"></div>
+  <!-- SUBTIELE MELDINGEN (TOAST) -->
+  <div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-[90%] max-w-sm"></div>
 
   <!-- =====================================================================
-       1. BOVENSTE ZWEVENDE BALK (BEGINSCHERM: ZOEKEN + SNOR/BROM WISSELAAR)
+       1. RUSTIGE BOVENSTE BALK (ZOEKVELD + SNOR/BROM SCHAKELAAR + KAARTLAAG)
   ====================================================================== -->
-  <header id="planningHeader" class="fixed top-0 inset-x-0 z-30 p-3 sm:p-4 pointer-events-none transition-all duration-300">
-    <div class="max-w-3xl mx-auto flex flex-col gap-2">
-      <div class="flex items-center gap-2 pointer-events-auto">
-        <!-- Brand + Zoekbalk -->
-        <div class="relative flex-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl flex items-center px-3 py-1.5">
-          <div class="flex items-center gap-1.5 pr-2.5 border-r border-slate-700/80 mr-2.5 select-none">
-            <span class="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-inner">SO</span>
-            <div class="hidden sm:block leading-tight">
-              <div class="text-xs font-extrabold tracking-tight text-white">SnelOnderweg<span class="text-emerald-400">.nl</span></div>
-              <div id="rvvHeaderSub" class="text-[10px] text-emerald-400 font-semibold">legal-graph-brom • 45</div>
-            </div>
+  <header id="planningHeader" class="fixed top-0 inset-x-0 z-30 p-3 sm:p-4 pointer-events-none">
+    <div class="max-w-4xl mx-auto flex flex-col gap-2">
+      <div class="flex items-center gap-2.5 pointer-events-auto">
+        <!-- Strakke witte zoekbalk -->
+        <div class="relative flex-1 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-full shadow-lg flex items-center px-4 py-1">
+          <div class="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-extrabold text-xs mr-3 shrink-0">
+            SO
           </div>
-
-          <svg class="w-5 h-5 text-slate-400 shrink-0 mr-2" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-400 shrink-0 mr-2" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 103.5 10.5a7.5 7.5 0 0013.15 6.15z"/>
           </svg>
           <input
             id="globalSearchInput"
             type="text"
             autocomplete="off"
-            placeholder="Waar wil je naartoe? Zoek adres, school of plaats..."
-            class="w-full bg-transparent text-sm sm:text-base text-white placeholder-slate-400 focus:outline-none py-2"
+            placeholder="Waarheen?"
+            class="w-full bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none py-2 font-medium"
           />
-          <button id="clearGlobalSearchBtn" class="hidden touch-btn p-2 text-slate-400 hover:text-white" title="Wissen">
+          <button id="clearGlobalSearchBtn" class="hidden p-1.5 text-slate-400 hover:text-slate-600 text-xs" title="Wissen">
             ✕
           </button>
         </div>
 
-        <!-- Rechtsboven: Snorfiets (25) / Bromfiets (45) wisselaar -->
-        <div class="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-1 flex items-center shadow-2xl shrink-0">
+        <!-- Rustige Snor / Brom schakelaar -->
+        <div class="bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-full p-1 flex items-center shadow-lg shrink-0">
           <button
             id="modeSnorBtn"
             type="button"
             onclick="setVehicleMode('snor')"
-            class="touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white"
-            title="Snorfiets (plate=snorfiets, max 25 km/u, G11/G12A fietspad)"
+            class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all text-slate-500 hover:text-slate-800"
           >
-            <span>SNOR</span>
-            <span class="text-[11px] font-black text-sky-400">25</span>
+            Snor
           </button>
           <button
             id="modeBromBtn"
             type="button"
             onclick="setVehicleMode('brom')"
-            class="touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-amber-400 text-slate-950 shadow-md"
-            title="Bromfiets (plate=bromfiets, max 45 km/u, rijbaan + G12A bromfietspad)"
+            class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all bg-emerald-600 text-white shadow-sm"
           >
-            <span>BROM</span>
-            <span class="text-[11px] font-black">45</span>
+            Brom
           </button>
         </div>
-      </div>
 
-      <!-- Snelkoppelingen Balk -->
-      <div class="flex items-center gap-1.5 overflow-x-auto custom-scroll pointer-events-auto pb-1">
+        <!-- Compacte Kaartlaag knop -->
         <button
           id="layerSwitchBtn"
           type="button"
           onclick="cycleMapStyle()"
-          class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-slate-700 text-xs font-bold text-slate-100 hover:border-emerald-500 flex items-center gap-1.5 shrink-0 shadow-lg"
-        >
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span id="layerSwitchLabel">Kaart: Google Hybrid</span>
-        </button>
-
-        <button
-          id="toggleSignsBtn"
-          type="button"
-          onclick="toggleRvvSignsLayer()"
-          class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-slate-700 text-xs font-bold text-slate-100 hover:border-emerald-500 flex items-center gap-1.5 shrink-0 shadow-lg"
-        >
-          <span>🪧</span>
-          <span id="toggleSignsLabel">NDW Borden: Aan</span>
-        </button>
-
-        <button
-          type="button"
-          onclick="document.getElementById('ndwFileInput').click()"
-          class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-emerald-500/50 text-xs font-bold text-emerald-300 hover:bg-slate-800 flex items-center gap-1.5 shrink-0 shadow-lg"
-          title="Importeer je volledige ndw-signs.json bestand (99.844 borden)"
-        >
-          <span>📥</span>
-          <span id="ndwCountBadge">NDW JSON (Actief)</span>
-        </button>
-
-        <button
-          id="scanRoadworksBtn"
-          type="button"
-          onclick="scanRoadworksAndSigns(true)"
-          class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-slate-700 text-xs font-bold text-slate-100 hover:border-amber-400 flex items-center gap-1.5 shrink-0 shadow-lg"
-        >
-          <span>🚧</span>
-          <span id="roadworksBadgeText">Werkzaamheden</span>
-        </button>
-
-        <button
-          id="openGoogleMapsBtn"
-          type="button"
-          onclick="openInGoogleMaps()"
-          class="touch-btn px-3 py-1.5 rounded-xl bg-blue-600/95 hover:bg-blue-500 border border-blue-400/40 text-xs font-bold text-white flex items-center gap-1.5 shrink-0 shadow-lg"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-full px-3.5 py-2 text-xs font-bold shadow-lg flex items-center gap-1.5 shrink-0 transition"
+          title="Wissel tussen Satelliet en Wegenkaart"
         >
           <span>🗺️</span>
-          <span>Google Maps</span>
-        </button>
-
-        <button
-          id="wakeLockBadgeBtn"
-          type="button"
-          onclick="requestWakeLock()"
-          class="touch-btn px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur border border-slate-700 text-xs font-bold text-slate-300 flex items-center gap-1.5 shrink-0 shadow-lg"
-        >
-          <span id="wakeLockDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
-          <span id="wakeLockText">Scherm Aan</span>
+          <span id="layerSwitchLabel" class="hidden sm:inline">Kaart</span>
         </button>
       </div>
 
       <!-- Autocomplete Dropdown -->
       <div
         id="searchResultsDropdown"
-        class="hidden pointer-events-auto bg-slate-900/98 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-2xl max-h-72 overflow-y-auto custom-scroll divide-y divide-slate-800"
+        class="hidden pointer-events-auto bg-white/98 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto custom-scroll divide-y divide-slate-100 max-w-xl"
       ></div>
     </div>
   </header>
 
   <!-- =====================================================================
-       2. 3D NAVIGATIE COCKPIT BOVENSTE BANNER (TIJDENS HET RIJDEN)
+       2. 3D NAVIGATIE COCKPIT BOVENSTE BANNER (ALLEEN TIJDENS HET RIJDEN)
   ====================================================================== -->
   <section id="cockpitTopBanner" class="hidden fixed top-0 inset-x-0 z-40 p-3 sm:p-4 pointer-events-none">
-    <div class="max-w-2xl mx-auto pointer-events-auto">
-      <div class="bg-emerald-700 border-2 border-white/90 rounded-3xl shadow-2xl p-3.5 sm:p-4 text-white flex items-center gap-3.5">
-        <div id="cockpitTurnIconBox" class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-emerald-800/90 border border-white/30 flex items-center justify-center shrink-0 shadow-inner">
-          <svg id="cockpitTurnSvg" class="w-11 h-11 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+    <div class="max-w-xl mx-auto pointer-events-auto">
+      <div class="bg-emerald-700 border border-white/40 rounded-3xl shadow-2xl p-4 text-white flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl bg-emerald-800 flex items-center justify-center shrink-0">
+          <svg id="cockpitTurnSvg" class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 19V5M5 12l7-7 7 7"/>
           </svg>
         </div>
 
         <div class="flex-1 min-w-0">
-          <div class="flex items-baseline justify-between gap-2">
-            <span id="cockpitTurnDistance" class="text-2xl sm:text-3xl font-black tracking-tight">Over 250 m</span>
-            <span id="cockpitVehiclePill" class="px-2.5 py-0.5 rounded-lg text-xs font-black bg-amber-400 text-slate-950 uppercase">BROM 45</span>
+          <div class="flex items-center gap-2">
+            <span id="cockpitTurnDistance" class="text-2xl font-black tracking-tight">Over 250 m</span>
+            <span id="cockpitVehiclePill" class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-white/20 text-white uppercase">Brom 45</span>
           </div>
-          <div id="cockpitStreetName" class="text-lg sm:text-xl font-extrabold truncate mt-0.5">Hoofdstraat Beerta → Beertsterweg</div>
-          <div id="cockpitRvvAdvice" class="text-xs sm:text-sm font-semibold text-emerald-100 bg-slate-950/35 px-2.5 py-1 rounded-xl mt-1 inline-flex items-center gap-1.5">
-            <span>🛵</span>
-            <span>Rijbaan (max 45 km/u) & verplicht G12a-pad</span>
-          </div>
+          <div id="cockpitStreetName" class="text-base font-bold truncate text-emerald-50 mt-0.5">Beertsterweg</div>
+          <div id="cockpitRvvAdvice" class="text-xs text-emerald-100/90 truncate mt-0.5">Rijbaan of verplicht G12a-pad</div>
         </div>
 
-        <div class="flex flex-col gap-1.5 shrink-0">
-          <button
-            type="button"
-            onclick="toggleVoiceMute()"
-            id="cockpitVoiceBtn"
-            class="touch-btn w-11 h-11 rounded-2xl bg-emerald-800/90 hover:bg-emerald-900 border border-white/30 flex items-center justify-center text-lg"
-            title="Spraaknavigatie Aan/Uit"
-          >
-            🔊
-          </button>
-          <button
-            type="button"
-            onclick="cycleAlternativeRoute()"
-            id="cockpitAltRouteBtn"
-            class="touch-btn px-2.5 h-11 rounded-2xl bg-slate-900/85 hover:bg-slate-900 border border-white/30 flex items-center justify-center text-xs font-extrabold"
-            title="Wissel tussen berekende routes"
-          >
-            1/1
-          </button>
-        </div>
+        <button
+          type="button"
+          onclick="toggleVoiceMute()"
+          id="cockpitVoiceBtn"
+          class="touch-btn w-11 h-11 rounded-2xl bg-emerald-800/80 hover:bg-emerald-900 flex items-center justify-center text-base shrink-0"
+          title="Geluid Aan/Uit"
+        >
+          🔊
+        </button>
       </div>
     </div>
   </section>
 
   <!-- =====================================================================
-       3. RECHTER ZWEVENDE KNOPPENBALK
+       3. SUBTIELE KAARTKNOPPEN RECHTSONDER (ALLEEN GPS & 2D/3D)
   ====================================================================== -->
-  <aside class="fixed right-3 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 pointer-events-auto">
+  <aside id="floatingMapControls" class="fixed right-3 bottom-72 sm:bottom-80 z-20 flex flex-col gap-2 pointer-events-auto transition-all">
     <button
-      id="gpsLockBtn"
       type="button"
       onclick="centerAndLockGps()"
-      class="touch-btn w-12 h-12 rounded-2xl bg-slate-900/95 backdrop-blur border border-slate-700 text-white shadow-xl flex items-center justify-center hover:border-emerald-500 transition"
-      title="Centreer en vergrendel op GPS"
+      class="w-10 h-10 rounded-full bg-white/95 backdrop-blur border border-slate-200 text-slate-700 shadow-md flex items-center justify-center hover:bg-slate-50 transition"
+      title="Centreer op locatie"
     >
-      <svg class="w-6 h-6 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+      <svg class="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
         <circle cx="12" cy="12" r="3"/>
         <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
         <circle cx="12" cy="12" r="8"/>
@@ -335,401 +240,379 @@
       id="pitchToggleBtn"
       type="button"
       onclick="toggleMapPitch()"
-      class="touch-btn w-12 h-12 rounded-2xl bg-slate-900/95 backdrop-blur border border-slate-700 text-xs font-black text-white shadow-xl flex items-center justify-center hover:border-emerald-500 transition"
-      title="Schakel 3D / 2D weergave"
+      class="w-10 h-10 rounded-full bg-white/95 backdrop-blur border border-slate-200 text-xs font-extrabold text-slate-700 shadow-md flex items-center justify-center hover:bg-slate-50 transition"
+      title="2D / 3D weergave"
     >
       3D
-    </button>
-
-    <button
-      type="button"
-      onclick="mapZoom(1)"
-      class="touch-btn w-12 h-12 rounded-2xl bg-slate-900/95 backdrop-blur border border-slate-700 text-xl font-bold text-white shadow-xl flex items-center justify-center hover:border-emerald-500 transition"
-      title="Zoom in"
-    >
-      +
-    </button>
-
-    <button
-      type="button"
-      onclick="mapZoom(-1)"
-      class="touch-btn w-12 h-12 rounded-2xl bg-slate-900/95 backdrop-blur border border-slate-700 text-xl font-bold text-white shadow-xl flex items-center justify-center hover:border-emerald-500 transition"
-      title="Zoom uit"
-    >
-      −
-    </button>
-
-    <button
-      id="dayNightBtn"
-      type="button"
-      onclick="toggleDayNightUi()"
-      class="touch-btn w-12 h-12 rounded-2xl bg-slate-900/95 backdrop-blur border border-slate-700 text-lg text-white shadow-xl flex items-center justify-center hover:border-emerald-500 transition"
-      title="Dag / Nacht contrastmodus"
-    >
-      🌙
     </button>
   </aside>
 
   <!-- =====================================================================
-       4. ONDERSTE HUD VOOR 3D NAVIGATIE COCKPIT
+       4. ONDERSTE HUD TIJDENS HET RIJDEN (SNELHEID + TIJD/AFSTAND + STOP)
   ====================================================================== -->
   <section id="cockpitBottomHud" class="hidden fixed bottom-0 inset-x-0 z-40 p-3 sm:p-5 pointer-events-none">
-    <div class="max-w-2xl mx-auto flex flex-col gap-3 pointer-events-auto">
-      <div class="flex items-end justify-between gap-2">
+    <div class="max-w-xl mx-auto flex flex-col gap-3 pointer-events-auto">
+      <div class="flex items-end justify-between">
+        <!-- Snelheidsmeter -->
         <div
           id="speedometerBadge"
-          class="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-slate-900/95 backdrop-blur-xl border-4 border-emerald-500 shadow-2xl flex flex-col items-center justify-center transition-all"
+          class="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-slate-900/95 backdrop-blur border-2 border-emerald-500 shadow-xl flex flex-col items-center justify-center transition-all"
         >
-          <span id="liveSpeedValue" class="text-3xl sm:text-4xl font-black tracking-tighter text-white leading-none">0</span>
-          <span class="text-[11px] font-bold uppercase tracking-widest text-slate-300 mt-1">KM/U</span>
-          <span id="speedLimitSub" class="text-[10px] font-extrabold text-emerald-400 mt-0.5">MAX 45</span>
+          <span id="liveSpeedValue" class="text-2xl sm:text-3xl font-black text-white leading-none">0</span>
+          <span class="text-[10px] font-bold uppercase text-slate-400 mt-1">km/u</span>
         </div>
 
-        <div class="flex flex-col items-end gap-2">
-          <div class="flex items-center gap-2">
-            <button
-              id="demoRideBtn"
-              type="button"
-              onclick="toggleSimulationDemo()"
-              class="touch-btn px-3.5 py-2.5 rounded-2xl bg-slate-900/95 backdrop-blur border border-slate-700 text-xs font-extrabold text-amber-300 shadow-xl flex items-center gap-1.5"
-            >
-              <span>▶️</span>
-              <span id="demoRideLabel">Simuleer Rit</span>
-            </button>
-
-            <button
-              id="recenterHudBtn"
-              type="button"
-              onclick="centerAndLockGps()"
-              class="touch-btn px-4 py-2.5 rounded-2xl bg-slate-900/95 backdrop-blur border border-emerald-500/60 text-xs font-extrabold text-white shadow-xl flex items-center gap-1.5"
-            >
-              <span id="gpsFollowDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-              <span>Centreren</span>
-            </button>
-          </div>
+        <!-- Simuleer & Centreer knoppen -->
+        <div class="flex items-center gap-2">
+          <button
+            id="demoRideBtn"
+            type="button"
+            onclick="toggleSimulationDemo()"
+            class="px-3.5 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700 text-xs font-bold text-white shadow-lg"
+          >
+            <span id="demoRideLabel">▶ Testrit</span>
+          </button>
+          <button
+            type="button"
+            onclick="centerAndLockGps()"
+            class="px-3.5 py-2 rounded-full bg-white text-slate-800 text-xs font-bold shadow-lg flex items-center gap-1.5"
+          >
+            <span id="gpsFollowDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Centreer</span>
+          </button>
         </div>
       </div>
 
+      <!-- Strakke witte statusbalk -->
       <div class="bg-white text-slate-900 rounded-3xl shadow-2xl p-3 sm:p-4 flex items-center justify-between gap-3 border border-slate-200">
+        <div class="flex-1 grid grid-cols-3 text-center divide-x divide-slate-100">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-400">Reistijd</div>
+            <div id="hudRemainingMin" class="text-lg sm:text-xl font-black text-emerald-600">12 min</div>
+          </div>
+          <div>
+            <div class="text-[11px] font-semibold text-slate-400">Afstand</div>
+            <div id="hudRemainingKm" class="text-lg sm:text-xl font-black text-slate-800">8.9 km</div>
+          </div>
+          <div>
+            <div class="text-[11px] font-semibold text-slate-400">Aankomst</div>
+            <div id="hudArrivalTime" class="text-lg sm:text-xl font-black text-slate-800">--:--</div>
+          </div>
+        </div>
+
         <button
           type="button"
           onclick="stopNavigationCockpit()"
-          class="touch-btn w-12 h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-lg flex items-center justify-center shrink-0 shadow-md"
-          title="Stop Navigatie"
+          class="touch-btn px-4 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shrink-0 shadow-sm"
         >
-          ✕
+          Stop
         </button>
-
-        <div class="flex-1 grid grid-cols-3 text-center divide-x divide-slate-200">
-          <div class="px-1">
-            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Reistijd</div>
-            <div id="hudRemainingMin" class="text-lg sm:text-2xl font-black text-emerald-600">12 min</div>
-          </div>
-          <div class="px-1">
-            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Afstand</div>
-            <div id="hudRemainingKm" class="text-lg sm:text-2xl font-black text-slate-900">8.9 km</div>
-          </div>
-          <div class="px-1">
-            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Aankomst</div>
-            <div id="hudArrivalTime" class="text-lg sm:text-2xl font-black text-slate-900">--:--</div>
-          </div>
-        </div>
       </div>
     </div>
   </section>
 
   <!-- =====================================================================
-       5. ONDERSTE UITSCHUIFBARE LADE ("BOTTOM SHEET" - BEGINSCHERM)
+       5. RUSTIGE ONDERSTE LADE ("BOTTOM SHEET" ZOALS SCOOTMAPS)
   ====================================================================== -->
-  <section
-    id="bottomSheet"
-    class="fixed bottom-0 inset-x-0 z-30 pointer-events-none transition-transform duration-300"
-  >
-    <div class="max-w-3xl mx-auto bg-slate-900/95 backdrop-blur-xl border-t border-x border-slate-700/80 rounded-t-3xl shadow-2xl pointer-events-auto flex flex-col max-h-[68vh]">
+  <section id="bottomSheet" class="fixed bottom-0 inset-x-0 z-30 pointer-events-none">
+    <div class="max-w-4xl mx-auto bg-[#f8f7f4]/95 backdrop-blur-xl border-t border-slate-200/90 rounded-t-3xl shadow-2xl pointer-events-auto flex flex-col max-h-[62vh]">
+      
+      <!-- Subtiel sleepbalkje om paneel kleiner/groter te maken -->
       <div
         onclick="toggleSheetCollapse()"
-        class="w-full py-2.5 px-4 flex items-center justify-between cursor-pointer select-none border-b border-slate-800/80"
+        class="w-full pt-2.5 pb-1 px-5 flex items-center justify-between cursor-pointer select-none"
       >
-        <div class="flex items-center gap-2">
-          <span id="dynamicGreeting" class="text-sm sm:text-base font-extrabold text-white">Goedenavond, klaar voor vertrek?</span>
-          <span id="engineStatusPill" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            legal-graph-brom • NDW
-          </span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-10 h-1.5 bg-slate-600 rounded-full"></div>
-          <span id="sheetCollapseChevron" class="text-xs text-slate-400 font-bold pl-1">▼</span>
-        </div>
+        <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto"></div>
       </div>
 
-      <div id="sheetBody" class="p-3.5 sm:p-4 overflow-y-auto custom-scroll space-y-3.5">
+      <!-- Inhoud van het paneel -->
+      <div id="sheetBody" class="px-5 pt-1 pb-4 overflow-y-auto custom-scroll space-y-3.5">
 
         <!-- TAB 1: KAART & ROUTEPLANNER -->
         <div id="tabContentRoute" class="space-y-3">
-          <div class="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 space-y-2">
-            <!-- Vertrekpunt [A] -->
-            <div class="flex items-center gap-2">
-              <span class="w-7 h-7 rounded-lg bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">A</span>
-              <input
-                id="originInput"
-                type="text"
-                autocomplete="off"
-                placeholder="Vertrekpunt (bijv. C.G.Wiegersweg 9)..."
-                class="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                type="button"
-                onclick="useCurrentGpsForOrigin()"
-                class="touch-btn px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-bold shrink-0 flex items-center gap-1"
-                title="Gebruik mijn huidige GPS-locatie"
-              >
-                <span>📍</span>
-                <span class="hidden sm:inline">Mijn GPS</span>
-              </button>
+          <!-- Rustige begroeting -->
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 id="dynamicGreeting" class="text-lg sm:text-xl font-extrabold text-slate-900 leading-tight">Goedemiddag</h1>
+              <p class="text-xs text-slate-500">Waar wil je naartoe?</p>
             </div>
+            <!-- Alleen zichtbaar als er meerdere route-opties zijn -->
+            <div id="routeAlternativesContainer" class="flex items-center gap-1.5"></div>
+          </div>
 
-            <!-- Dynamische Tussenstops Container -->
-            <div id="waypointsContainer" class="space-y-2"></div>
+          <!-- Gecombineerde witte invoerkaart voor Vertrek & Bestemming -->
+          <div class="bg-white border border-slate-200/90 rounded-2xl p-3 shadow-sm flex items-center gap-3">
+            <div class="flex-1 space-y-2 min-w-0">
+              <!-- Vertrekpunt -->
+              <div class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0"></span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[10px] font-semibold text-slate-400 leading-none">Vertrekpunt</div>
+                  <input
+                    id="originInput"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="Kies vertrekpunt..."
+                    class="w-full bg-transparent text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none pt-0.5 truncate"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onclick="useCurrentGpsForOrigin()"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-slate-50 text-xs"
+                  title="Gebruik mijn huidige GPS-locatie"
+                >
+                  📍
+                </button>
+              </div>
 
-            <!-- Bestemming [B] -->
-            <div class="flex items-center gap-2">
-              <span class="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">B</span>
-              <input
-                id="destinationInput"
-                type="text"
-                autocomplete="off"
-                placeholder="Bestemming (bijv. Dollard College Pontis Winschoten)..."
-                class="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                type="button"
-                onclick="swapOriginAndDestination()"
-                class="touch-btn px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold shrink-0"
-                title="Wissel vertrekpunt en bestemming om"
-              >
-                ⇅
-              </button>
-            </div>
+              <!-- Eventuele tussenstops (standaard verborgen tot je op + klikt) -->
+              <div id="waypointsContainer" class="space-y-1.5 pl-4 border-l border-dashed border-slate-200"></div>
 
-            <!-- Actiebalk voor Tussenstops & Optimalisatie -->
-            <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <div class="flex items-center gap-1.5">
+              <div class="border-t border-slate-100"></div>
+
+              <!-- Bestemming -->
+              <div class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full border-2 border-slate-400 shrink-0"></span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[10px] font-semibold text-slate-400 leading-none">Bestemming</div>
+                  <input
+                    id="destinationInput"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="Kies bestemming..."
+                    class="w-full bg-transparent text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none pt-0.5 truncate"
+                  />
+                </div>
                 <button
                   type="button"
                   onclick="addIntermediateWaypoint()"
-                  class="touch-btn px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-emerald-400 flex items-center gap-1"
+                  class="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                  title="Tussenstop toevoegen"
                 >
-                  <span>＋</span>
-                  <span>Tussenstop</span>
-                </button>
-                <button
-                  id="optimizeTspBtn"
-                  type="button"
-                  onclick="optimizeWaypointsTSP()"
-                  class="hidden touch-btn px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold text-amber-300 flex items-center gap-1"
-                >
-                  <span>⚡</span>
-                  <span>Optimaliseer Route</span>
-                </button>
-              </div>
-
-              <div class="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onclick="saveCurrentRouteAsFavorite()"
-                  class="touch-btn px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-300"
-                >
-                  ⭐ Bewaar
-                </button>
-                <button
-                  type="button"
-                  onclick="calculateAndRenderRoute()"
-                  class="touch-btn px-3 py-1.5 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-500/40 text-xs font-bold text-emerald-300"
-                >
-                  🔄 Bereken
+                  + Stop
                 </button>
               </div>
             </div>
-          </div>
 
-          <!-- ETA, Afstand, Aankomsttijd & Multi-Route Keuze Kaartjes -->
-          <div id="routeSummaryPanel" class="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 space-y-2.5">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex items-baseline gap-2.5">
-                <span id="summaryDuration" class="text-2xl sm:text-3xl font-black text-emerald-400">12 min</span>
-                <span id="summaryDistance" class="text-base sm:text-lg font-extrabold text-white">8.9 km</span>
-              </div>
-              <div class="text-right">
-                <div class="text-[11px] text-slate-400 font-semibold">Verwachte aankomst</div>
-                <div id="summaryArrival" class="text-sm sm:text-base font-extrabold text-slate-200">--:--</div>
-              </div>
-            </div>
-
-            <div id="rvvRouteBanner" class="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
-              <span id="rvvRouteDescription">brouterProfile: legal-graph-brom (accessStubM: 60m • NDW G11/C13/C15 gefilterd)</span>
-              <span id="tradeOffBadge" class="shrink-0 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[11px]">8876 m • 710 s</span>
-            </div>
-
-            <div id="routeAlternativesContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
-          </div>
-
-          <div class="flex items-center gap-2">
+            <!-- Omwisselknop rechts -->
             <button
-              id="startNavigationBtn"
               type="button"
-              onclick="startNavigationCockpit()"
-              class="touch-btn flex-1 py-3.5 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black text-base sm:text-lg shadow-xl shadow-emerald-950/60 flex items-center justify-center gap-2 transition"
+              onclick="swapOriginAndDestination()"
+              class="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center text-sm font-bold shrink-0 transition"
+              title="Wissel vertrek en bestemming"
             >
-              <span>🚀</span>
-              <span>Start Navigatie</span>
+              ⇅
             </button>
           </div>
+
+          <!-- Rustige ETA & Afstand balk -->
+          <div class="bg-white border border-slate-200/90 rounded-2xl px-4 py-2.5 shadow-sm flex items-center justify-between">
+            <div>
+              <div id="summaryDuration" class="text-lg sm:text-xl font-extrabold text-slate-900 leading-tight">12 min</div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                ETA • Aankomst <span id="summaryArrival">--:--</span>
+              </div>
+            </div>
+
+            <div class="text-right">
+              <div id="summaryDistance" class="text-lg sm:text-xl font-extrabold text-slate-900 leading-tight">8.9 km</div>
+              <div id="rvvRouteDescription" class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Bromfiets (45 km/u)
+              </div>
+            </div>
+          </div>
+
+          <!-- Grote duidelijke Start-knop -->
+          <button
+            id="startNavigationBtn"
+            type="button"
+            onclick="startNavigationCockpit()"
+            class="touch-btn w-full py-3.5 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition"
+          >
+            <span>▲</span>
+            <span>Start</span>
+          </button>
         </div>
 
         <!-- TAB 2: OPGESLAGEN FAVORIETEN -->
-        <div id="tabContentFavorites" class="hidden space-y-3">
+        <div id="tabContentFavorites" class="hidden space-y-3 pt-1">
           <div class="flex items-center justify-between">
-            <h3 class="text-sm font-extrabold text-white uppercase tracking-wider">Opgeslagen Favorieten & Regio-Presets</h3>
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900">Opgeslagen routes</h3>
+              <p class="text-xs text-slate-500">Klik op een route om direct te laden</p>
+            </div>
             <button
               type="button"
               onclick="saveCurrentRouteAsFavorite()"
-              class="touch-btn px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
+              class="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-sm"
             >
-              + Huidige Route Opslaan
+              + Huidige opslaan
             </button>
           </div>
           <div id="favoritesList" class="space-y-2"></div>
         </div>
 
-        <!-- TAB 3: KILOMETERTELLER & ONDERHOUDSMONITOR -->
-        <div id="tabContentOdometer" class="hidden space-y-3">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3">
-              <div class="text-[11px] font-bold uppercase text-slate-400">Totale Tellerstand</div>
-              <div class="text-2xl font-black text-white mt-0.5"><span id="odoTotalText">0.0</span> <span class="text-xs font-bold text-emerald-400">km</span></div>
-              <div class="mt-2 flex items-center gap-1.5">
+        <!-- TAB 3: MIJN SCOOTER & EXTRA OPTIES (TELLER, CHECKLIST & KAARTOPTIES) -->
+        <div id="tabContentScooter" class="hidden space-y-3 pt-1">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-extrabold text-slate-900">Mijn Scooter & Opties</h3>
+            <button
+              type="button"
+              onclick="openDepartureCheckModal()"
+              class="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold"
+            >
+              🛡️ Vertrek-Check
+            </button>
+          </div>
+
+          <!-- Kilometerteller kaartjes -->
+          <div class="grid grid-cols-3 gap-2">
+            <div class="bg-white border border-slate-200 rounded-2xl p-3">
+              <div class="text-[10px] font-bold uppercase text-slate-400">Totaal</div>
+              <div class="text-lg font-black text-slate-900 mt-0.5"><span id="odoTotalText">4820.5</span> <span class="text-xs font-semibold text-slate-400">km</span></div>
+              <div class="mt-2 flex gap-1">
                 <input
                   id="odoSyncInput"
                   type="number"
                   step="0.1"
-                  placeholder="Gelijkmaken..."
-                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
+                  placeholder="Km..."
+                  class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800"
                 />
                 <button
                   type="button"
                   onclick="syncTotalOdometer()"
-                  class="touch-btn px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shrink-0"
+                  class="px-2 py-1 rounded-lg bg-slate-800 text-white text-[11px] font-bold shrink-0"
                 >
-                  Stel in
+                  OK
                 </button>
               </div>
             </div>
 
-            <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3 flex flex-col justify-between">
+            <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col justify-between">
               <div>
-                <div class="text-[11px] font-bold uppercase text-slate-400">Dagteller (Trip 1)</div>
-                <div class="text-2xl font-black text-emerald-400 mt-0.5"><span id="odoTrip1Text">0.00</span> <span class="text-xs">km</span></div>
+                <div class="text-[10px] font-bold uppercase text-slate-400">Dagteller 1</div>
+                <div class="text-lg font-black text-emerald-600 mt-0.5"><span id="odoTrip1Text">18.40</span> <span class="text-xs">km</span></div>
               </div>
               <button
                 type="button"
                 onclick="resetTripCounter(1)"
-                class="touch-btn mt-2 w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200"
+                class="mt-2 w-full py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-600"
               >
-                Reset Trip 1
+                Reset
               </button>
             </div>
 
-            <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3 flex flex-col justify-between">
+            <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col justify-between">
               <div>
-                <div class="text-[11px] font-bold uppercase text-slate-400">Dagteller (Trip 2)</div>
-                <div class="text-2xl font-black text-sky-400 mt-0.5"><span id="odoTrip2Text">0.00</span> <span class="text-xs">km</span></div>
+                <div class="text-[10px] font-bold uppercase text-slate-400">Dagteller 2</div>
+                <div class="text-lg font-black text-slate-700 mt-0.5"><span id="odoTrip2Text">142.00</span> <span class="text-xs">km</span></div>
               </div>
               <button
                 type="button"
                 onclick="resetTripCounter(2)"
-                class="touch-btn mt-2 w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200"
+                class="mt-2 w-full py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-600"
               >
-                Reset Trip 2
+                Reset
               </button>
             </div>
           </div>
 
-          <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-2.5">
+          <!-- Onderhoudsstatus -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-3 space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold uppercase tracking-wider text-white">🔧 Scooter Onderhoudsmonitor</span>
+              <span class="text-xs font-bold text-slate-700">Onderhoudsinterval</span>
               <button
                 type="button"
                 onclick="registerMaintenanceDone()"
-                class="touch-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-emerald-400"
+                class="text-[11px] font-bold text-emerald-600 hover:underline"
               >
-                ✓ Onderhoudsbeurt Geregistreerd
+                ✓ Beurt gehad
               </button>
             </div>
             <div id="maintenanceBarsContainer" class="space-y-2 text-xs"></div>
+          </div>
+
+          <!-- Rustige lijst met geavanceerde kaartopties (uit het hoofdscherm gehaald) -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onclick="toggleRvvSignsLayer()"
+              class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700"
+            >
+              🪧 <span id="toggleSignsLabel">Verkeersborden op kaart: Uit</span>
+            </button>
+
+            <button
+              type="button"
+              onclick="openInGoogleMaps()"
+              class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700"
+            >
+              🗺️ Open in Google Maps
+            </button>
+
+            <button
+              type="button"
+              onclick="document.getElementById('ndwFileInput').click()"
+              class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700"
+            >
+              📥 <span id="ndwCountBadge">Laad ndw-signs.json</span>
+            </button>
           </div>
         </div>
 
       </div>
 
-      <!-- Tabbladen Onderin -->
-      <nav class="grid grid-cols-4 border-t border-slate-800 bg-slate-950/95 px-2 py-1">
+      <!-- Strakke 3-Tab Navigatiebalk Onderin -->
+      <nav class="grid grid-cols-3 border-t border-slate-200/80 bg-white px-4 py-1.5">
         <button
           id="navTabRoute"
           type="button"
           onclick="switchBottomTab('route')"
-          class="touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 font-bold text-xs"
+          class="flex flex-col items-center justify-center py-1 text-emerald-600 font-bold text-[11px]"
         >
-          <span>🗺️</span>
-          <span>Kaart & Route</span>
+          <span class="text-sm">🗺️</span>
+          <span>Kaart</span>
         </button>
         <button
           id="navTabFavorites"
           type="button"
           onclick="switchBottomTab('favorites')"
-          class="touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-bold text-xs"
+          class="flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-700 font-semibold text-[11px]"
         >
-          <span>⭐</span>
-          <span>Favorieten</span>
+          <span class="text-sm">🔖</span>
+          <span>Opgeslagen</span>
         </button>
         <button
-          id="navTabOdometer"
+          id="navTabScooter"
           type="button"
-          onclick="switchBottomTab('odometer')"
-          class="touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-bold text-xs"
+          onclick="switchBottomTab('scooter')"
+          class="flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-700 font-semibold text-[11px]"
         >
-          <span>📟</span>
-          <span>Kilometerteller</span>
-        </button>
-        <button
-          id="navTabCheck"
-          type="button"
-          onclick="openDepartureCheckModal()"
-          class="touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-bold text-xs"
-        >
-          <span>🛡️</span>
-          <span>Vertrek-Check</span>
+          <span class="text-sm">🛵</span>
+          <span>Mijn Scooter</span>
         </button>
       </nav>
     </div>
   </section>
 
   <!-- =====================================================================
-       6. INTERACTIEVE VERTREK-CHECK MODAL
+       6. VERTREK-CHECK MODAL
   ====================================================================== -->
   <div
     id="departureCheckModal"
-    class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
+    class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
   >
-    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-4">
+    <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-4">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-lg font-black text-white">🛡️ Check vóór je vertrekt</h2>
-          <p class="text-xs text-slate-400">5 essentiële veiligheidscontroles voor een veilige scooterrit</p>
+          <h2 class="text-base font-extrabold text-slate-900">Check vóór je vertrekt</h2>
+          <p class="text-xs text-slate-500">5 snelle controles voor onderweg</p>
         </div>
         <button
           type="button"
           onclick="closeDepartureCheckModal()"
-          class="touch-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:text-white font-bold"
+          class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 font-bold text-xs"
         >
           ✕
         </button>
@@ -737,27 +620,18 @@
 
       <div id="checklistItemsContainer" class="space-y-2"></div>
 
-      <div class="flex items-center justify-between gap-2 pt-2">
-        <button
-          type="button"
-          onclick="checkAllDepartureItems()"
-          class="touch-btn px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200"
-        >
-          Alles aanvinken
-        </button>
-        <button
-          type="button"
-          onclick="confirmDepartureCheckAndStart()"
-          class="touch-btn flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm"
-        >
-          Klaar voor vertrek!
-        </button>
-      </div>
+      <button
+        type="button"
+        onclick="confirmDepartureCheckAndStart()"
+        class="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm"
+      >
+        Sluiten
+      </button>
     </div>
   </div>
 
   <!-- =====================================================================
-       JAVASCRIPT ENGINE: BROUTER LEGAL-GRAPH + NDW-SIGNS.JSON FILTER
+       JAVASCRIPT ENGINE: BROUTER LEGAL-GRAPH + NDW-SIGNS FILTER
   ====================================================================== -->
   <script>
     const SafeStorage = {
@@ -776,33 +650,17 @@
       }
     };
 
-    /*************************************************************************
-     * EXACTE SCOOTMAPS REFERENTIE-GEOMETRIE UIT DE GELEVERDE LEGAL-ROUTE JSON
-     * Traject: C.G.Wiegersweg 9 (7.1025924, 53.1954129) ->
-     *          Dollard College Pontis Winschoten (7.040692, 53.1464944)
-     * Properties: track-length: 8876.07 m, timeS: 710 s (12 min), edgeCount: 292
-     *************************************************************************/
+    // Exacte geverifieerde Scootmaps-route (C.G.Wiegersweg 9 -> Dollard College Pontis Winschoten, 8876m, 710s)
     const SCOOTMAPS_VERIFIED_COORDS_WIEGERSWEG_PONTIS = [
       [7.103,53.195],[7.1027,53.19504],[7.10233,53.19501],[7.10233,53.19498],[7.10236,53.1947],[7.10238,53.19458],[7.1024,53.1944],[7.10241,53.19431],[7.10243,53.19412],[7.10246,53.19392],[7.1025,53.19361],[7.10318,53.18814],[7.10335,53.18693],[7.10339,53.18676],[7.10346,53.18662],[7.10356,53.18647],[7.1038,53.18623],[7.10551,53.18519],[7.10706,53.18424],[7.1084,53.18338],[7.10857,53.18328],[7.10941,53.18272],[7.10949,53.18261],[7.10894,53.18246],[7.10868,53.18239],[7.10822,53.18225],[7.10778,53.18209],[7.10688,53.18167],[7.10552,53.18112],[7.10545,53.18109],[7.10519,53.18098],[7.1051,53.18093],[7.10478,53.18068],[7.10409,53.18009],[7.10398,53.18],[7.10284,53.17909],[7.10221,53.1786],[7.10184,53.17831],[7.10171,53.1782],[7.10169,53.17819],[7.10122,53.17778],[7.10128,53.17765],[7.10117,53.1776],[7.10098,53.1775],[7.10079,53.17739],[7.10067,53.17732],[7.10056,53.17725],[7.10045,53.17717],[7.10034,53.17709],[7.10018,53.17696],[7.0999,53.17675],[7.0997,53.17659],[7.09958,53.1765],[7.09937,53.17633],[7.0992,53.1762],[7.09903,53.17606],[7.09879,53.17587],[7.09856,53.17569],[7.09848,53.17562],[7.09806,53.17526],[7.09795,53.17517],[7.09784,53.17508],[7.09771,53.17498],[7.09758,53.17487],[7.09732,53.17465],[7.09712,53.17449],[7.09689,53.1743],[7.09678,53.17421],[7.09662,53.17408],[7.0965,53.17399],[7.09639,53.1739],[7.09617,53.17372],[7.0961,53.1736],[7.09581,53.17336],[7.09571,53.17333],[7.09555,53.17321],[7.09545,53.17313],[7.09533,53.17304],[7.09515,53.17289],[7.09503,53.17278],[7.0949,53.17268],[7.09473,53.17253],[7.09463,53.17245],[7.09447,53.17232],[7.09432,53.17219],[7.09407,53.17198],[7.09386,53.1718],[7.09362,53.17159],[7.0935,53.17149],[7.0934,53.1714],[7.0932,53.17123],[7.09303,53.17108],[7.0928,53.17089],[7.09256,53.17068],[7.09244,53.17058],[7.09224,53.17041],[7.09214,53.17032],[7.09204,53.17024],[7.09175,53.17],[7.09153,53.16981],[7.0914,53.16971],[7.09124,53.16958],[7.09104,53.16941],[7.09084,53.16924],[7.09073,53.16914],[7.09048,53.16893],[7.09033,53.1688],[7.09024,53.16872],[7.08979,53.16835],[7.08958,53.16816],[7.0892,53.16785],[7.08905,53.16773],[7.08902,53.16771],[7.08893,53.16763],[7.08857,53.16732],[7.08792,53.16679],[7.08759,53.16652],[7.08733,53.1663],[7.0871,53.16611],[7.08672,53.16581],[7.08655,53.16567],[7.08639,53.16555],[7.08623,53.16541],[7.0859,53.16515],[7.08572,53.16501],[7.08526,53.16461],[7.08516,53.16453],[7.08495,53.16435],[7.08476,53.16419],[7.08452,53.16399],[7.08415,53.16367],[7.08403,53.16358],[7.08367,53.16327],[7.08345,53.16308],[7.08313,53.16281],[7.08285,53.16258],[7.08253,53.16233],[7.08215,53.16203],[7.08185,53.1618],[7.08156,53.16156],[7.08099,53.16113],[7.08085,53.16102],[7.08059,53.16082],[7.08048,53.16074],[7.08023,53.16054],[7.07984,53.16024],[7.07933,53.15985],[7.07906,53.15964],[7.07875,53.15941],[7.0785,53.15921],[7.07799,53.15883],[7.07777,53.15865],[7.07748,53.15843],[7.07685,53.15794],[7.0764,53.1576],[7.07568,53.15703],[7.07453,53.15614],[7.07427,53.15594],[7.07393,53.15567],[7.07361,53.15543],[7.07331,53.15525],[7.07316,53.15519],[7.07271,53.155],[7.07161,53.15454],[7.07112,53.15434],[7.07072,53.15417],[7.07033,53.15402],[7.07011,53.15394],[7.06986,53.15387],[7.06968,53.15382],[7.06946,53.15377],[7.0692,53.15372],[7.06892,53.15368],[7.06862,53.15365],[7.06831,53.15363],[7.06778,53.15361],[7.06717,53.15361],[7.06625,53.15366],[7.06596,53.1537],[7.06538,53.15381],[7.06479,53.15398],[7.06396,53.15432],[7.06316,53.15467],[7.06169,53.15531],[7.06083,53.15569],[7.05998,53.15607],[7.05986,53.15612],[7.0596,53.15623],[7.05931,53.15634],[7.05911,53.1564],[7.05875,53.15652],[7.05795,53.15676],[7.05774,53.15683],[7.05756,53.15684],[7.05743,53.15684],[7.05725,53.15682],[7.05706,53.15678],[7.05702,53.15678],[7.05705,53.1569],[7.05697,53.15703],[7.0569,53.15709],[7.05673,53.15714],[7.05632,53.15725],[7.05599,53.15733],[7.05582,53.15738],[7.05569,53.15741],[7.05558,53.15737],[7.05538,53.1573],[7.05515,53.15724],[7.055,53.15724],[7.05485,53.15726],[7.05483,53.15721],[7.0547,53.15669],[7.05467,53.15657],[7.05463,53.15642],[7.05463,53.15641],[7.0546,53.1563],[7.05455,53.15614],[7.0545,53.15593],[7.05455,53.1558],[7.05464,53.15575],[7.05458,53.1556],[7.05439,53.15541],[7.05428,53.1553],[7.05418,53.1552],[7.05394,53.15496],[7.05392,53.15494],[7.0539,53.15492],[7.05389,53.1549],[7.05383,53.15485],[7.05352,53.15453],[7.0532,53.1542],[7.053,53.154],[7.05279,53.15383],[7.05257,53.15366],[7.05246,53.15358],[7.05235,53.15349],[7.05214,53.15333],[7.05201,53.15322],[7.0519,53.15314],[7.05173,53.15299],[7.05136,53.15264],[7.05056,53.15188],[7.05057,53.15186],[7.05061,53.15185],[7.05065,53.15183],[7.05069,53.15181],[7.05067,53.15172],[7.05051,53.15165],[7.05044,53.15163],[7.05011,53.15132],[7.04978,53.151],[7.04964,53.15087],[7.04963,53.15083],[7.04957,53.15085],[7.04938,53.1507],[7.04924,53.15064],[7.04911,53.15064],[7.04905,53.15062],[7.04895,53.15056],[7.04893,53.15053],[7.04894,53.15041],[7.04898,53.15038],[7.04886,53.1502],[7.0488,53.15012],[7.0488,53.15008],[7.04858,53.14987],[7.04819,53.1495],[7.0478,53.14913],[7.04723,53.14861],[7.04634,53.14764],[7.04619,53.14745],[7.04602,53.14724],[7.04551,53.14665],[7.04566,53.14654],[7.04561,53.1464],[7.04549,53.14635],[7.04533,53.14634],[7.04495,53.14558],[7.04487,53.14541],[7.04464,53.14492],[7.04452,53.14495],[7.04392,53.14505],[7.04353,53.14511],[7.0434,53.14514],[7.04297,53.14521],[7.0428,53.14523],[7.04263,53.14526],[7.04228,53.14532],[7.04185,53.14539],[7.04167,53.14536],[7.04151,53.14524],[7.04154,53.14526],[7.04062,53.14573],[7.041,53.146]
     ];
 
-    /*************************************************************************
-     * INGEBOUWDE NDW-VERKEERSBORDEN DATABASE (UIT JOUW NDW-SIGNS.JSON + REGIO)
-     * Kan live worden aangevuld door een volledig ndw-signs.json bestand te laden!
-     *************************************************************************/
     const BUILTIN_NDW_SIGNS = [
-      // Exacte borden uit jouw ndw-signs.json in Groningen/Oldambt & omgeving:
       { lon: 7.0255416284743, lat: 53.152663781563, code: 'G11', bearing: 0, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Winschoten / Pieter Smitbrug' },
       { lon: 7.0215076193844, lat: 53.113950431337, code: 'G13', bearing: 270, validated: 'n', source: 'ndw', desc: 'Onverplicht fietspad Zuiderveen' },
       { lon: 7.13249870789347, lat: 53.0864423967022, code: 'G11', bearing: 309, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Bellingwolde' },
       { lon: 7.18053371004518, lat: 53.0817237268057, code: 'G13', bearing: 308, validated: 'n', source: 'ndw', desc: 'Onverplicht fietspad Grensgebied' },
       { lon: 6.9758832537212, lat: 53.171878374405, code: 'G11', bearing: 270, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Midwolda / Scheemda' },
-      { lon: 6.8647660928441, lat: 53.104649784311, code: 'G11', bearing: 90, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Veendam' },
-      { lon: 6.8671777905257, lat: 53.096578025962, code: 'G11', bearing: 180, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Veendam-Zuid' },
-      { lon: 6.8707577770866, lat: 53.095101996317, code: 'G12', bearing: 0, validated: 'n', source: 'ndw', desc: 'Einde verplicht bromfietspad' },
-      { lon: 6.8618820055478, lat: 53.169392639279, code: 'G12', bearing: 0, validated: 'n', source: 'ndw', desc: 'Zuidbroek G12' },
-      { lon: 6.8845820581559, lat: 53.247660475279, code: 'G12A', bearing: 90, validated: 'n', source: 'ndw', desc: 'Verplicht fiets-/bromfietspad Appingedam' },
-      // Kritieke RVV-borden rond Winschoten / Beerta / Finsterwolde die legal-graph-brom sturen:
       { lon: 7.0442, lat: 53.1605, code: 'C13', bearing: 180, validated: 'j', source: 'ndw', desc: 'De Blauwe Roos N367 (Gesloten voor brom-/snorfietsen)' },
       { lon: 7.0265, lat: 53.1578, code: 'G11', bearing: 180, validated: 'j', source: 'ndw', desc: 'Pieter Smitbrug (Verplicht fietspad G11)' },
       { lon: 7.0815, lat: 53.1732, code: 'G11', bearing: 270, validated: 'j', source: 'ndw', desc: 'Reiderwolde Natuurpad (Verplicht fietspad G11)' },
@@ -810,11 +668,6 @@
       { lon: 7.0490, lat: 53.1505, code: 'G12A', bearing: 200, validated: 'j', source: 'ndw', desc: 'Beertsterweg Winschoten (G12a)' }
     ];
 
-    /*************************************************************************
-     * GLOBALE APPLICATIESTATUS (STATE)
-     * Standaard exact op de coördinaten uit jouw Scootmaps netwerk-log:
-     * fromLng=7.1025924, fromLat=53.1954129 -> toLng=7.040692, toLat=53.1464944
-     *************************************************************************/
     const DEFAULT_ORIGIN = {
       label: 'C.G.Wiegersweg 9',
       lat: 53.1954129,
@@ -827,21 +680,20 @@
     };
 
     const AppState = {
-      vehicleMode: SafeStorage.get('so_vehicle_mode_v3', 'brom'), // 'brom' (plate=bromfiets) of 'snor' (plate=snorfiets)
+      vehicleMode: SafeStorage.get('so_vehicle_mode_v4', 'brom'),
       mapStyleIndex: 0,
-      is3D: true,
-      highContrastNight: false,
-      signsLayerVisible: true,
+      is3D: false,
+      signsLayerVisible: false, // Standaard uit voor een rustig kaartbeeld
       sheetCollapsed: false,
       voiceMuted: false,
       wakeLockSentinel: null,
 
-      origin: SafeStorage.get('so_origin_v3', DEFAULT_ORIGIN),
-      destination: SafeStorage.get('so_destination_v3', DEFAULT_DESTINATION),
-      waypoints: SafeStorage.get('so_waypoints_v3', []),
+      origin: SafeStorage.get('so_origin_v4', DEFAULT_ORIGIN),
+      destination: SafeStorage.get('so_destination_v4', DEFAULT_DESTINATION),
+      waypoints: SafeStorage.get('so_waypoints_v4', []),
 
       ndwSigns: [...BUILTIN_NDW_SIGNS],
-      accessStubM: 60, // Exact zoals in jouw JSON: "accessStubM": 60
+      accessStubM: 60,
 
       routes: [],
       selectedRouteIndex: 0,
@@ -873,30 +725,23 @@
         mount: true
       }),
 
-      favorites: SafeStorage.get('so_favorites_v3', [
+      favorites: SafeStorage.get('so_favorites_v4', [
         {
-          title: 'C.G.Wiegersweg 9 → Dollard College Pontis Winschoten (8.9 km • 12 min)',
+          title: 'C.G.Wiegersweg 9 → Dollard College Pontis',
           origin: DEFAULT_ORIGIN,
           destination: DEFAULT_DESTINATION,
           waypoints: []
         },
         {
-          title: 'Winschoten → Blauwestad (60-weg vs Fietspad)',
+          title: 'Winschoten → Blauwestad',
           origin: { label: 'Winschoten, Station', lat: 53.1444, lon: 7.0347 },
           destination: { label: 'Blauwestad, Strand Zuid', lat: 53.1753, lon: 7.0681 },
-          waypoints: []
-        },
-        {
-          title: 'Groningen Grote Markt → Zernike Campus',
-          origin: { label: 'Groningen, Grote Markt', lat: 53.2192, lon: 6.5667 },
-          destination: { label: 'Groningen, Zernikeplein', lat: 53.2406, lon: 6.5361 },
           waypoints: []
         }
       ])
     };
 
     let map = null;
-    let routeBadgeMarkers = [];
     let rvvSignMarkers = [];
     let waypointMarkers = [];
     let userLocationMarker = null;
@@ -905,7 +750,7 @@
 
     const MAP_STYLES = [
       {
-        name: 'Google Hybrid',
+        name: 'Satelliet',
         style: {
           version: 8,
           sources: {
@@ -913,27 +758,17 @@
               type: 'raster',
               tiles: [
                 'https://mt0.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}',
-                'https://mt1.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}',
-                'https://mt2.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}',
-                'https://mt3.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}'
+                'https://mt1.google.com/vt/lyrs=y&hl=nl&x={x}&y={y}&z={z}'
               ],
               tileSize: 256,
-              attribution: '© Google Maps Hybrid • SnelOnderweg.nl'
+              attribution: '© Google'
             }
           },
-          layers: [
-            {
-              id: 'google-hybrid-layer',
-              type: 'raster',
-              source: 'googleHybrid',
-              minzoom: 0,
-              maxzoom: 22
-            }
-          ]
+          layers: [{ id: 'google-hybrid-layer', type: 'raster', source: 'googleHybrid' }]
         }
       },
       {
-        name: 'Google Wegen',
+        name: 'Wegenkaart',
         style: {
           version: 8,
           sources: {
@@ -944,43 +779,10 @@
                 'https://mt1.google.com/vt/lyrs=m&hl=nl&x={x}&y={y}&z={z}'
               ],
               tileSize: 256,
-              attribution: '© Google Maps Wegenkaart'
+              attribution: '© Google'
             }
           },
-          layers: [
-            {
-              id: 'google-roadmap-layer',
-              type: 'raster',
-              source: 'googleRoadmap',
-              minzoom: 0,
-              maxzoom: 22
-            }
-          ]
-        }
-      },
-      {
-        name: 'PDOK 8cm Luchtfoto',
-        style: {
-          version: 8,
-          sources: {
-            pdokAerial: {
-              type: 'raster',
-              tiles: [
-                'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg'
-              ],
-              tileSize: 256,
-              attribution: '© PDOK Hoge Resolutie Luchtfoto'
-            }
-          },
-          layers: [
-            {
-              id: 'pdok-aerial-layer',
-              type: 'raster',
-              source: 'pdokAerial',
-              minzoom: 0,
-              maxzoom: 21
-            }
-          ]
+          layers: [{ id: 'google-roadmap-layer', type: 'raster', source: 'googleRoadmap' }]
         }
       }
     ];
@@ -1005,29 +807,24 @@
       if (hour >= 5 && hour < 12) greet = 'Goedemorgen';
       else if (hour >= 12 && hour < 18) greet = 'Goedemiddag';
       const el = document.getElementById('dynamicGreeting');
-      if (el) el.textContent = `${greet}, waar wil je naartoe?`;
+      if (el) el.textContent = greet;
     }
 
-    function showToast(message, type = 'info') {
+    function showToast(message) {
       const container = document.getElementById('toastContainer');
       if (!container) return;
-      const colors = {
-        info: 'bg-slate-900/95 border-emerald-500 text-white',
-        warn: 'bg-amber-950/95 border-amber-400 text-amber-100',
-        error: 'bg-red-950/95 border-red-500 text-red-100'
-      };
       const toast = document.createElement('div');
-      toast.className = `px-4 py-2.5 rounded-2xl border shadow-2xl text-xs sm:text-sm font-bold transition-all duration-300 pointer-events-auto ${colors[type] || colors.info}`;
+      toast.className = 'px-4 py-2 rounded-full bg-slate-900/90 text-white shadow-lg text-xs font-semibold transition-all duration-300 pointer-events-auto';
       toast.textContent = message;
       container.appendChild(toast);
       setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
-      }, 3600);
+      }, 2800);
     }
 
     /*************************************************************************
-     * NDW-SIGNS.JSON INLADEN & PARSEN (ONDERSTEUNT DE VOLLEDIGE 99.844 BORDEN)
+     * NDW-SIGNS.JSON INLADEN & FILTEREN VOOR BROUTER
      *************************************************************************/
     async function tryAutoLoadLocalNdwSignsJson() {
       try {
@@ -1036,9 +833,7 @@
           const json = await res.json();
           ingestNdwSignsFeatureCollection(json);
         }
-      } catch (err) {
-        // Gebruik de ingebouwde NDW-borden + live Overpass/NDW indien geen lokaal bestand aanwezig is
-      }
+      } catch (err) {}
     }
 
     function handleNdwJsonFileUpload(event) {
@@ -1049,10 +844,10 @@
         try {
           const json = JSON.parse(e.target.result);
           const count = ingestNdwSignsFeatureCollection(json);
-          showToast(`ndw-signs.json geladen: ${count.toLocaleString('nl-NL')} officiële RVV-borden actief!`);
+          showToast(`${count.toLocaleString('nl-NL')} verkeersborden ingeladen`);
           calculateAndRenderRoute();
         } catch (err) {
-          showToast('Ongeldig JSON-formaat in ndw-signs.json', 'error');
+          showToast('Ongeldig JSON-bestand');
         }
       };
       reader.readAsText(file);
@@ -1078,39 +873,25 @@
       AppState.ndwSigns = parsed;
       const badge = document.getElementById('ndwCountBadge');
       if (badge) {
-        badge.textContent = `NDW (${parsed.length.toLocaleString('nl-NL')} borden)`;
+        badge.textContent = `NDW geladen (${parsed.length.toLocaleString('nl-NL')})`;
       }
       return parsed.length;
     }
 
-    /*
-     * Evalueert een individueel NDW-verkeersbord exact volgens RVV 1990 en Scootmaps legal-graph:
-     * Retourneert: 'allow' | 'nogo' | 'neutral'
-     */
     function evaluateNdwSignForVehicle(sign, mode) {
       const code = String(sign.code || '').toUpperCase();
       const textJoined = Array.isArray(sign.textSigns) ? sign.textSigns.join(' ').toLowerCase() : '';
-
-      // Controleer onderborden ("uitgezonderd bromfietser", "snorfietsen niet toegestaan")
       const exceptsBrom = textJoined.includes('uitgezonderd') && textJoined.includes('bromfiets');
       const exceptsFiets = textJoined.includes('uitgezonderd') && textJoined.includes('fiets');
       const forbidsSnorOnPath = textJoined.includes('snorfietsen') && textJoined.includes('niet toegestaan');
 
       if (mode === 'brom') {
-        // Bromfiets (45 km/u, plate=bromfiets):
-        if (code === 'G12A') return 'allow'; // Verplicht fiets-/bromfietspad
-        if (code === 'G11' || code === 'G13' || code === 'G12' || code === 'C13' || code === 'C15') {
-          return 'nogo';
-        }
-        if ((code === 'C12' || code === 'C3') && !exceptsBrom) {
-          return 'nogo';
-        }
+        if (code === 'G12A') return 'allow';
+        if (code === 'G11' || code === 'G13' || code === 'G12' || code === 'C13' || code === 'C15') return 'nogo';
+        if ((code === 'C12' || code === 'C3') && !exceptsBrom) return 'nogo';
         return 'neutral';
       } else {
-        // Snorfiets (25 km/u, plate=snorfiets):
-        if (code === 'G11') {
-          return forbidsSnorOnPath ? 'nogo' : 'allow';
-        }
+        if (code === 'G11') return forbidsSnorOnPath ? 'nogo' : 'allow';
         if (code === 'G12A' || code === 'G13') return 'allow';
         if (code === 'C13' || code === 'C15') return 'nogo';
         if (code === 'C3' && !exceptsFiets && !exceptsBrom) return 'nogo';
@@ -1118,12 +899,6 @@
       }
     }
 
-    /*
-     * Bouwt de BRouter `&nogos=` string op uit de NDW-borden binnen de route-corridor,
-     * met respect voor:
-     * 1. `accessStubM: 60` (geen blokkades binnen 60m van vertrek of bestemming)
-     * 2. `G12A` override (een G12A-bord heft een nabijgelegen G11/C12-blokkade op)
-     */
     function buildBrouterNogosFromNdwSigns(pointsList, mode) {
       if (!pointsList || pointsList.length < 2) return '';
 
@@ -1152,37 +927,33 @@
         const verdict = evaluateNdwSignForVehicle(s, mode);
         if (verdict !== 'nogo') return;
 
-        // 1. accessStubM: 60m vrijstelling rondom elk opgegeven routepunt (vertrek/tussenstop/bestemming)
         const nearEndpoint = pointsList.some(
           (pt) => haversineKm(pt.lat, pt.lon, s.lat, s.lon) * 1000 <= AppState.accessStubM
         );
         if (nearEndpoint) return;
 
-        // 2. G12A override: als binnen 35m een G12A-bromfietspadbord staat, niet blokkeren
         const nearG12a = g12aLocations.some(
           (g) => haversineKm(g.lat, g.lon, s.lat, s.lon) * 1000 <= 35
         );
         if (nearG12a) return;
 
-        // Straal: 22 meter voor individuele NDW-borden, 55 meter voor hoofdverboden (C13/G11 brug)
         const radiusMeters = s.validated === 'j' ? 45 : 22;
         nogoStrings.push(`${s.lon.toFixed(6)},${s.lat.toFixed(6)},${radiusMeters}`);
       });
 
-      // BRouter accepteert maximaal ~120 nogo-punten per URL
       return nogoStrings.slice(0, 110).join('|');
     }
 
     /*************************************************************************
-     * MAPLIBRE GL JS 3D KAART INITIALISATIE
+     * MAPLIBRE INITIALISATIE
      *************************************************************************/
     function initMapLibre() {
       map = new maplibregl.Map({
         container: 'map',
         style: MAP_STYLES[AppState.mapStyleIndex].style,
         center: [7.075, 53.170],
-        zoom: 12.3,
-        pitch: 30,
+        zoom: 12.2,
+        pitch: 0,
         bearing: 0,
         attributionControl: false
       });
@@ -1225,21 +996,7 @@
             data: { type: 'FeatureCollection', features: [] }
           });
         }
-        const casingId = `route-alt-casing-${i}`;
         const layerId = `route-alt-${i}`;
-        if (!map.getLayer(casingId)) {
-          map.addLayer({
-            id: casingId,
-            type: 'line',
-            source: sourceId,
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: {
-              'line-color': '#0f172a',
-              'line-width': 9,
-              'line-opacity': 0.55
-            }
-          });
-        }
         if (!map.getLayer(layerId)) {
           map.addLayer({
             id: layerId,
@@ -1249,7 +1006,7 @@
             paint: {
               'line-color': '#64748b',
               'line-width': 5,
-              'line-opacity': 0.75
+              'line-opacity': 0.65
             }
           });
         }
@@ -1269,8 +1026,8 @@
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': '#ffffff',
-            'line-width': 10,
-            'line-opacity': 0.98
+            'line-width': 9,
+            'line-opacity': 0.95
           }
         });
       }
@@ -1282,7 +1039,7 @@
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': '#059669',
-            'line-width': 6,
+            'line-width': 5.5,
             'line-opacity': 1
           }
         });
@@ -1292,7 +1049,7 @@
     function cycleMapStyle() {
       AppState.mapStyleIndex = (AppState.mapStyleIndex + 1) % MAP_STYLES.length;
       const chosen = MAP_STYLES[AppState.mapStyleIndex];
-      document.getElementById('layerSwitchLabel').textContent = `Kaart: ${chosen.name}`;
+      document.getElementById('layerSwitchLabel').textContent = chosen.name;
       if (!map) return;
       map.setStyle(chosen.style);
       map.once('styledata', () => {
@@ -1302,11 +1059,11 @@
     }
 
     /*************************************************************************
-     * SNORFIETS (25) / BROMFIETS (45) MODUS SCHAKELAAR
+     * SNORFIETS (25) / BROMFIETS (45) SCHAKELAAR
      *************************************************************************/
     function setVehicleMode(mode) {
       AppState.vehicleMode = mode === 'snor' ? 'snor' : 'brom';
-      SafeStorage.set('so_vehicle_mode_v3', AppState.vehicleMode);
+      SafeStorage.set('so_vehicle_mode_v4', AppState.vehicleMode);
       initVehicleModeUI();
       calculateAndRenderRoute();
     }
@@ -1315,40 +1072,24 @@
       const isBrom = AppState.vehicleMode === 'brom';
       const snorBtn = document.getElementById('modeSnorBtn');
       const bromBtn = document.getElementById('modeBromBtn');
-      const rvvHeaderSub = document.getElementById('rvvHeaderSub');
       const rvvRouteDescription = document.getElementById('rvvRouteDescription');
-      const speedLimitSub = document.getElementById('speedLimitSub');
       const cockpitVehiclePill = document.getElementById('cockpitVehiclePill');
 
       if (isBrom) {
-        bromBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-amber-400 text-slate-950 shadow-md';
-        snorBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white';
-        if (rvvHeaderSub) rvvHeaderSub.textContent = 'legal-graph-brom • 45';
-        if (rvvRouteDescription) {
-          rvvRouteDescription.textContent = 'brouterProfile: legal-graph-brom (plate=bromfiets • Rijbaan 50/60 + G12A • G11/C13 geblokkeerd)';
-        }
-        if (speedLimitSub) speedLimitSub.textContent = 'MAX 45';
-        if (cockpitVehiclePill) {
-          cockpitVehiclePill.textContent = 'BROM 45';
-          cockpitVehiclePill.className = 'px-2.5 py-0.5 rounded-lg text-xs font-black bg-amber-400 text-slate-950 uppercase';
-        }
+        bromBtn.className = 'px-3.5 py-1.5 rounded-full text-xs font-bold transition-all bg-emerald-600 text-white shadow-sm';
+        snorBtn.className = 'px-3.5 py-1.5 rounded-full text-xs font-bold transition-all text-slate-500 hover:text-slate-800';
+        if (rvvRouteDescription) rvvRouteDescription.textContent = 'Bromfiets (45 km/u)';
+        if (cockpitVehiclePill) cockpitVehiclePill.textContent = 'Brom 45';
       } else {
-        snorBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight bg-sky-400 text-slate-950 shadow-md';
-        bromBtn.className = 'touch-btn px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex flex-col items-center justify-center leading-tight text-slate-300 hover:text-white';
-        if (rvvHeaderSub) rvvHeaderSub.textContent = 'legal-graph-snor • 25';
-        if (rvvRouteDescription) {
-          rvvRouteDescription.textContent = 'brouterProfile: legal-graph-snor (plate=snorfiets • Verplicht G11 & G12A fietspad • max 25 km/u)';
-        }
-        if (speedLimitSub) speedLimitSub.textContent = 'MAX 25';
-        if (cockpitVehiclePill) {
-          cockpitVehiclePill.textContent = 'SNOR 25';
-          cockpitVehiclePill.className = 'px-2.5 py-0.5 rounded-lg text-xs font-black bg-sky-400 text-slate-950 uppercase';
-        }
+        snorBtn.className = 'px-3.5 py-1.5 rounded-full text-xs font-bold transition-all bg-sky-500 text-white shadow-sm';
+        bromBtn.className = 'px-3.5 py-1.5 rounded-full text-xs font-bold transition-all text-slate-500 hover:text-slate-800';
+        if (rvvRouteDescription) rvvRouteDescription.textContent = 'Snorfiets (25 km/u)';
+        if (cockpitVehiclePill) cockpitVehiclePill.textContent = 'Snor 25';
       }
     }
 
     /*************************************************************************
-     * GEOMETRIE & WISKUNDE HULPFUNCTIES
+     * WISKUNDE & MANOEUVRE HULPFUNCTIES
      *************************************************************************/
     function haversineKm(lat1, lon1, lat2, lon2) {
       const R = 6371;
@@ -1381,7 +1122,6 @@
       return (Math.atan2(y, x) * toDeg + 360) % 360;
     }
 
-    // Genereer turn-by-turn afslaginstructies uit een GeoJSON LineString
     function buildManeuversFromCoords(coords, mode) {
       if (!coords || coords.length < 2) return [];
       const maneuvers = [
@@ -1390,9 +1130,7 @@
           streetName: AppState.origin.label || 'Vertrekpunt',
           lengthKm: 0.3,
           coord: coords[0],
-          rvvNote: mode === 'brom'
-            ? 'Rijbaan (max 45 km/u) of verplicht G12a-bromfietspad'
-            : 'Verplicht fietspad G11/G12a (max 25 km/u + helm)'
+          rvvNote: mode === 'brom' ? 'Rijbaan (max 45 km/u) of G12a-pad' : 'Fietspad G11/G12a (max 25 km/u)'
         }
       ];
 
@@ -1413,17 +1151,15 @@
             coords[i][0] > 7.048 && coords[i][0] < 7.062 && coords[i][1] > 53.150 && coords[i][1] < 53.160;
 
           maneuvers.push({
-            instruction: isBeertsterbrug
-              ? `${dirText} naar Beertsterweg (Bord G12a)`
-              : `${dirText} en vervolg route`,
-            streetName: isBeertsterbrug ? 'Beertsterweg (G12a)' : 'Doorgaande route',
+            instruction: isBeertsterbrug ? `${dirText} naar Beertsterweg` : `${dirText} en vervolg de weg`,
+            streetName: isBeertsterbrug ? 'Beertsterweg' : 'Doorgaande route',
             lengthKm: Number(accKm.toFixed(2)),
             coord: coords[i],
             rvvNote: isBeertsterbrug
-              ? 'Verplicht fiets-/bromfietspad (Bord G12a • Beertsterbrug)'
+              ? 'Verplicht fiets-/bromfietspad (Bord G12a)'
               : mode === 'brom'
               ? 'Rijbaan volgen (max 45 km/u)'
-              : 'Verplicht fietspad G11/G12a (max 25 km/u)'
+              : 'Verplicht fietspad (max 25 km/u)'
           });
           accKm = 0;
           prevBearing = nextBearing;
@@ -1442,7 +1178,7 @@
     }
 
     /*************************************************************************
-     * SCOOTMAPS LEGAL-GRAPH ROUTERING ENGINE (BROUTER + NDW NOGOS)
+     * ROUTERING ENGINE (SCOOTMAPS LEGAL-GRAPH + BROUTER)
      *************************************************************************/
     function isExactWiegerswegToPontisQuery(pointsList) {
       if (!pointsList || pointsList.length !== 2) return false;
@@ -1451,12 +1187,11 @@
       return dOrig < 0.25 && dDest < 0.25;
     }
 
-    function buildScootmapsRouteObjectFromCoords(coords, distanceM, timeS, mode, title, subtitle) {
+    function buildScootmapsRouteObjectFromCoords(coords, distanceM, timeS, mode, title) {
       const cleanCoords = coords.map((c) => [Number(c[0]), Number(c[1])]);
       const distanceKm = Number((distanceM / 1000).toFixed(1));
       const durationMin = Math.max(1, Math.round(timeS / 60));
       const maneuvers = buildManeuversFromCoords(cleanCoords, mode);
-
       const wKm = mode === 'brom' ? 0.65 : 0.85;
       const weightedScore = Number((durationMin + distanceKm * wKm).toFixed(2));
 
@@ -1468,40 +1203,31 @@
         distanceKm,
         durationMin,
         weightedScore,
-        badgeTitle: title || 'Beste Balans',
-        badgeSubtitle: subtitle || 'legal-graph-brom • Aanbevolen'
+        badgeTitle: title || 'Aanbevolen'
       };
     }
 
     async function fetchBrouterLegalGraphRoutes(pointsList, mode) {
       const results = [];
 
-      // 1. Als het de exacte referentierit C.G.Wiegersweg 9 -> Dollard College Pontis Winschoten is,
-      //    gebruik de 100% geverifieerde 292 coördinaten uit jouw Scootmaps legal-route JSON (8876m, 710s = 12 min voor brom, 8914m, 1284s = 21 min voor snor):
       if (isExactWiegerswegToPontisQuery(pointsList)) {
         const isBrom = mode === 'brom';
-        const exactDistM = isBrom ? 8876.07 : 8914.0;
-        const exactTimeS = isBrom ? 710 : 1284;
         results.push(
           buildScootmapsRouteObjectFromCoords(
             SCOOTMAPS_VERIFIED_COORDS_WIEGERSWEG_PONTIS,
-            exactDistM,
-            exactTimeS,
+            isBrom ? 8876.07 : 8914.0,
+            isBrom ? 710 : 1284,
             mode,
-            'Beste Balans (Scootmaps)',
-            isBrom
-              ? 'Via Hoofdstraat Beerta & Beertsterweg G12a'
-              : 'Via G11/G12a fietspad (25 km/u)'
+            'Aanbevolen'
           )
         );
       }
 
-      // 2. Vraag daarnaast live BRouter aan met het juiste tweewielerprofiel + NDW Verkeersborden nogos
       const lonlats = pointsList.map((p) => `${Number(p.lon).toFixed(6)},${Number(p.lat).toFixed(6)}`).join('|');
       const nogos = buildBrouterNogosFromNdwSigns(pointsList, mode);
       const brouterProfile = mode === 'brom' ? 'fastbike' : 'trekking';
 
-      const altIndices = results.length > 0 ? [1, 2] : [0, 1, 2];
+      const altIndices = results.length > 0 ? [1] : [0, 1];
       const brouterPromises = altIndices.map((altIdx) => {
         const url = `https://brouter.de/brouter?lonlats=${encodeURIComponent(lonlats)}&profile=${brouterProfile}&alternativeidx=${altIdx}&format=geojson${
           nogos ? `&nogos=${encodeURIComponent(nogos)}` : ''
@@ -1513,15 +1239,13 @@
 
       const brouterResponses = await Promise.all(brouterPromises);
 
-      brouterResponses.forEach((geojson, idx) => {
+      brouterResponses.forEach((geojson) => {
         const feat = geojson?.features?.[0];
         const coords = feat?.geometry?.coordinates;
         if (!Array.isArray(coords) || coords.length < 2) return;
 
         const props = feat.properties || {};
         const trackLenM = Number(props['track-length'] || computeGeometryLengthKm(coords) * 1000);
-
-        // Bereken de exacte Scootmaps-tijd op basis van 45 km/u (12.50 m/s) voor bromfiets en 25 km/u (6.94 m/s) voor snorfiets
         const effectiveSpeedMs = mode === 'brom' ? 12.5 : 6.92;
         const computedTimeS = trackLenM / effectiveSpeedMs;
 
@@ -1530,8 +1254,7 @@
           trackLenM,
           computedTimeS,
           mode,
-          results.length === 0 ? 'Beste Balans' : `Alternatief ${results.length + 1}`,
-          mode === 'brom' ? '60-Wegen & G12A profiel' : 'Fietspad G11/G12A profiel'
+          results.length === 0 ? 'Aanbevolen' : 'Alternatief'
         );
 
         const isDup = results.some(
@@ -1542,21 +1265,11 @@
         }
       });
 
-      // Pas de Tijd vs. Afstand Trade-Off Heuristiek toe op de gevonden kandidaten
       if (results.length > 1) {
         results.sort((a, b) => a.weightedScore - b.weightedScore);
-        results.forEach((r, i) => {
-          if (i === 0) {
-            r.badgeTitle = 'Beste Balans';
-          } else if (i === 1) {
-            r.badgeTitle = 'Alternatief 2';
-          } else {
-            r.badgeTitle = 'Alternatief 3';
-          }
-        });
       }
 
-      return results.slice(0, 3);
+      return results.slice(0, 2);
     }
 
     async function calculateAndRenderRoute(silent = false) {
@@ -1568,52 +1281,32 @@
 
       if (pointsList.length < 2) return;
 
-      const statusPill = document.getElementById('engineStatusPill');
-      if (statusPill) {
-        statusPill.textContent = 'legal-graph berekent...';
-      }
-
       try {
         const routes = await fetchBrouterLegalGraphRoutes(pointsList, AppState.vehicleMode);
         if (!routes || routes.length === 0) {
-          showToast('Kan geen verharde route vinden voor dit traject.', 'error');
-          if (statusPill) statusPill.textContent = 'Geen route gevonden';
+          showToast('Geen verharde route gevonden');
           return;
         }
 
         AppState.routes = routes;
         AppState.selectedRouteIndex = 0;
 
-        const best = routes[0];
-        if (statusPill) {
-          statusPill.textContent =
-            AppState.vehicleMode === 'brom'
-              ? `legal-graph-brom (${best.distanceKm} km)`
-              : `legal-graph-snor (${best.distanceKm} km)`;
-        }
-
-        const tradeBadge = document.getElementById('tradeOffBadge');
-        if (tradeBadge) {
-          tradeBadge.textContent = `${best.distanceM} m • ${best.timeS} s`;
-        }
-
         drawAllRoutesOnMap(!silent && !AppState.isNavigating);
         renderRouteAlternativesUI();
         updateRouteSummaryHeader();
-        scanRoadworksAndSigns(false);
+        if (AppState.signsLayerVisible) {
+          renderSignsOnMap();
+        }
       } catch (err) {
-        showToast('Kan geen verharde route vinden.', 'error');
+        showToast('Kon route tijdelijk niet berekenen');
       }
     }
 
     /*************************************************************************
-     * TEKEN ROUTES, BADGES & NDW-VERKEERSBORDEN OP DE 3D-KAART
+     * TEKEN ROUTE OP DE KAART (ZONDER OVERBODIGE BADGES)
      *************************************************************************/
     function drawAllRoutesOnMap(fitBounds = true) {
       if (!map || !map.isStyleLoaded()) return;
-
-      routeBadgeMarkers.forEach((m) => m.remove());
-      routeBadgeMarkers = [];
 
       for (let i = 0; i < 3; i++) {
         const src = map.getSource(`route-source-${i}`);
@@ -1626,10 +1319,7 @@
                 {
                   type: 'Feature',
                   properties: { routeIndex: i },
-                  geometry: {
-                    type: 'LineString',
-                    coordinates: route.coords
-                  }
+                  geometry: { type: 'LineString', coordinates: route.coords }
                 }
               ]
             });
@@ -1648,48 +1338,25 @@
             {
               type: 'Feature',
               properties: { routeIndex: AppState.selectedRouteIndex },
-              geometry: {
-                type: 'LineString',
-                coordinates: activeRoute.coords
-              }
+              geometry: { type: 'LineString', coordinates: activeRoute.coords }
             }
           ]
         });
       }
 
-      AppState.routes.forEach((route, idx) => {
-        if (!route.coords || route.coords.length < 3) return;
-        const fraction = idx === 0 ? 0.48 : idx === 1 ? 0.32 : 0.66;
-        const ptIdx = Math.floor(route.coords.length * fraction);
-        const coord = route.coords[ptIdx];
-
-        const badgeEl = document.createElement('div');
-        badgeEl.className = `route-map-badge ${idx === AppState.selectedRouteIndex ? 'active' : ''}`;
-        badgeEl.innerHTML = `${route.durationMin} min • ${route.distanceKm} km`;
-        badgeEl.onclick = (ev) => {
-          ev.stopPropagation();
-          selectRouteAlternative(idx);
-        };
-
-        const marker = new maplibregl.Marker({ element: badgeEl, anchor: 'center' })
-          .setLngLat(coord)
-          .addTo(map);
-        routeBadgeMarkers.push(marker);
-      });
-
       waypointMarkers.forEach((m) => m.remove());
       waypointMarkers = [];
 
       const allStops = [
-        { ...AppState.origin, badge: 'A', color: '#059669' },
-        ...AppState.waypoints.map((w, i) => ({ ...w, badge: String(i + 1), color: '#0284c7' })),
-        { ...AppState.destination, badge: 'B', color: '#e11d48' }
+        { ...AppState.origin, badge: 'A', color: '#2563eb' },
+        ...AppState.waypoints.map((w, i) => ({ ...w, badge: String(i + 1), color: '#059669' })),
+        { ...AppState.destination, badge: 'B', color: '#db2777' }
       ];
 
       allStops.forEach((stop) => {
         if (typeof stop.lat !== 'number' || typeof stop.lon !== 'number') return;
         const el = document.createElement('div');
-        el.className = 'w-8 h-8 rounded-full border-2 border-white shadow-xl flex items-center justify-center font-black text-xs text-white';
+        el.className = 'w-6 h-6 rounded-full border-2 border-white shadow-md flex items-center justify-center font-bold text-[11px] text-white';
         el.style.backgroundColor = stop.color;
         el.textContent = stop.badge;
 
@@ -1703,9 +1370,9 @@
         const bounds = new maplibregl.LngLatBounds();
         activeRoute.coords.forEach((c) => bounds.extend(c));
         map.fitBounds(bounds, {
-          padding: { top: 110, bottom: 320, left: 50, right: 70 },
-          maxZoom: 14.5,
-          duration: 850
+          padding: { top: 90, bottom: 320, left: 50, right: 50 },
+          maxZoom: 14.2,
+          duration: 700
         });
       }
     }
@@ -1717,48 +1384,28 @@
       drawAllRoutesOnMap(false);
       renderRouteAlternativesUI();
       updateRouteSummaryHeader();
-      if (AppState.isNavigating) {
-        updateCockpitBannerForStep(0);
-      }
     }
 
-    function cycleAlternativeRoute() {
-      if (!AppState.routes || AppState.routes.length <= 1) return;
-      const next = (AppState.selectedRouteIndex + 1) % AppState.routes.length;
-      selectRouteAlternative(next);
-      showToast(`Route gewisseld naar: ${AppState.routes[next].badgeTitle}`);
-    }
-
+    // Compacte route-pillekes rechtsboven in het paneel (alleen als er een alternatief is)
     function renderRouteAlternativesUI() {
       const container = document.getElementById('routeAlternativesContainer');
-      const cockpitAltBtn = document.getElementById('cockpitAltRouteBtn');
       if (!container) return;
       container.innerHTML = '';
 
-      if (cockpitAltBtn) {
-        cockpitAltBtn.textContent = `${AppState.selectedRouteIndex + 1}/${Math.max(1, AppState.routes.length)}`;
-      }
+      if (AppState.routes.length <= 1) return;
 
       AppState.routes.forEach((route, idx) => {
         const isActive = idx === AppState.selectedRouteIndex;
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.onclick = () => selectRouteAlternative(idx);
-        card.className = `touch-btn text-left p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.onclick = () => selectRouteAlternative(idx);
+        pill.className = `px-2.5 py-1 rounded-full text-xs font-bold transition ${
           isActive
-            ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-lg'
-            : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-600'
+            ? 'bg-emerald-600 text-white shadow-sm'
+            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
         }`;
-
-        card.innerHTML = `
-          <div class="flex items-center justify-between gap-1 w-full">
-            <span class="text-xs font-extrabold ${isActive ? 'text-emerald-300' : 'text-slate-300'}">${route.badgeTitle}</span>
-            ${isActive ? '<span class="w-2 h-2 rounded-full bg-emerald-400"></span>' : ''}
-          </div>
-          <div class="text-base font-black text-white mt-0.5">${route.durationMin} min <span class="text-xs font-bold text-slate-300">• ${route.distanceKm} km</span></div>
-          <div class="text-[10px] text-slate-400 truncate mt-0.5">${route.badgeSubtitle}</div>
-        `;
-        container.appendChild(card);
+        pill.textContent = `${route.durationMin} min (${route.distanceKm} km)`;
+        container.appendChild(pill);
       });
     }
 
@@ -1779,7 +1426,7 @@
     }
 
     /*************************************************************************
-     * PDOK LOCATIESERVER v3.1 + PHOTON OSM POI ADRESZOEKER
+     * PDOK LOCATIESERVER + PHOTON ADRESZOEKER
      *************************************************************************/
     function initInputsFromState() {
       const origEl = document.getElementById('originInput');
@@ -1795,9 +1442,7 @@
       const destInput = document.getElementById('destinationInput');
 
       if (globalInput) {
-        globalInput.addEventListener('focus', () => {
-          activeSearchTarget = 'global';
-        });
+        globalInput.addEventListener('focus', () => { activeSearchTarget = 'global'; });
         globalInput.addEventListener('input', (e) => {
           const val = e.target.value.trim();
           clearGlobalBtn.classList.toggle('hidden', val.length === 0);
@@ -1814,18 +1459,14 @@
       }
 
       if (origInput) {
-        origInput.addEventListener('focus', () => {
-          activeSearchTarget = 'origin';
-        });
+        origInput.addEventListener('focus', () => { activeSearchTarget = 'origin'; });
         origInput.addEventListener('input', (e) => {
           triggerCombinedAddressSearch(e.target.value.trim(), 'origin');
         });
       }
 
       if (destInput) {
-        destInput.addEventListener('focus', () => {
-          activeSearchTarget = 'destination';
-        });
+        destInput.addEventListener('focus', () => { activeSearchTarget = 'destination'; });
         destInput.addEventListener('input', (e) => {
           triggerCombinedAddressSearch(e.target.value.trim(), 'destination');
         });
@@ -1856,8 +1497,8 @@
       if (!dropdown) return;
 
       try {
-        const pdokUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(query)}&rows=6`;
-        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lang=nl&limit=4&bbox=3.3,50.7,7.3,53.6`;
+        const pdokUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(query)}&rows=5`;
+        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lang=nl&limit=3&bbox=3.3,50.7,7.3,53.6`;
 
         const [pdokRes, photonRes] = await Promise.all([
           fetch(pdokUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null),
@@ -1865,19 +1506,11 @@
         ]);
 
         const items = [];
-
-        const pdokDocs = pdokRes?.response?.docs || [];
-        pdokDocs.forEach((doc) => {
-          items.push({
-            source: 'PDOK BAG',
-            label: doc.weergavenaam,
-            type: doc.type || 'adres',
-            pdokId: doc.id
-          });
+        (pdokRes?.response?.docs || []).forEach((doc) => {
+          items.push({ label: doc.weergavenaam, type: doc.type || 'adres', pdokId: doc.id });
         });
 
-        const photonFeatures = photonRes?.features || [];
-        photonFeatures.forEach((f) => {
+        (photonRes?.features || []).forEach((f) => {
           const p = f.properties || {};
           const coords = f.geometry?.coordinates;
           if (!coords) return;
@@ -1885,13 +1518,7 @@
           if (nameParts.length === 0) return;
           const label = nameParts.join(', ');
           if (!items.some((i) => i.label.toLowerCase() === label.toLowerCase())) {
-            items.push({
-              source: 'OSM POI',
-              label,
-              type: p.osm_value || 'locatie',
-              lat: coords[1],
-              lon: coords[0]
-            });
+            items.push({ label, type: p.osm_value || 'locatie', lat: coords[1], lon: coords[0] });
           }
         });
 
@@ -1914,15 +1541,12 @@
       items.forEach((item) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'w-full text-left px-4 py-3 hover:bg-slate-800/90 flex items-center justify-between gap-2 transition';
+        btn.className = 'w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center justify-between gap-2 transition';
         btn.innerHTML = `
           <div class="min-w-0">
-            <div class="text-sm font-bold text-white truncate">${item.label}</div>
-            <div class="text-[11px] text-slate-400 uppercase font-semibold">${item.type}</div>
+            <div class="text-sm font-semibold text-slate-800 truncate">${item.label}</div>
+            <div class="text-[10px] text-slate-400 uppercase font-medium">${item.type}</div>
           </div>
-          <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold shrink-0 ${
-            item.source === 'PDOK BAG' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-sky-500/20 text-sky-300'
-          }">${item.source}</span>
         `;
         btn.onclick = () => handleSelectSearchResult(item);
         dropdown.appendChild(btn);
@@ -1949,7 +1573,6 @@
             }
           }
         } catch (err) {
-          showToast('Kon coördinaten niet ophalen uit PDOK.', 'error');
           return;
         }
       }
@@ -1960,20 +1583,20 @@
 
       if (activeSearchTarget === 'origin') {
         AppState.origin = selectedPoint;
-        SafeStorage.set('so_origin_v3', selectedPoint);
+        SafeStorage.set('so_origin_v4', selectedPoint);
         document.getElementById('originInput').value = item.label;
       } else if (activeSearchTarget.startsWith('waypoint-')) {
         const idx = parseInt(activeSearchTarget.split('-')[1], 10);
         if (AppState.waypoints[idx]) {
           AppState.waypoints[idx] = selectedPoint;
-          SafeStorage.set('so_waypoints_v3', AppState.waypoints);
+          SafeStorage.set('so_waypoints_v4', AppState.waypoints);
           renderWaypointsList();
         }
       } else {
         AppState.destination = selectedPoint;
-        SafeStorage.set('so_destination_v3', selectedPoint);
+        SafeStorage.set('so_destination_v4', selectedPoint);
         document.getElementById('destinationInput').value = item.label;
-        document.getElementById('globalSearchInput').value = item.label;
+        document.getElementById('globalSearchInput').value = '';
       }
 
       calculateAndRenderRoute();
@@ -1985,135 +1608,85 @@
     }
 
     /*************************************************************************
-     * MULTI-STOP LOGICA & TSP ROUTE-OPTIMALISATIE
+     * TUSSENSTOPS
      *************************************************************************/
     function renderWaypointsList() {
       const container = document.getElementById('waypointsContainer');
-      const tspBtn = document.getElementById('optimizeTspBtn');
       if (!container) return;
       container.innerHTML = '';
 
       AppState.waypoints.forEach((wp, idx) => {
         const row = document.createElement('div');
-        row.className = 'flex items-center gap-1.5';
+        row.className = 'flex items-center gap-2 py-1';
         row.innerHTML = `
-          <span class="w-7 h-7 rounded-lg bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0">${idx + 1}</span>
           <input
             type="text"
             value="${wp.label || ''}"
             placeholder="Tussenstop ${idx + 1}..."
-            class="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-sky-400"
+            class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-500"
           />
-          <button type="button" class="touch-btn px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold" title="Omhoog">↑</button>
-          <button type="button" class="touch-btn px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold" title="Omlaag">↓</button>
-          <button type="button" class="touch-btn px-2 py-1 rounded-lg bg-red-950/80 text-red-300 text-xs font-bold" title="Verwijder tussenstop">✕</button>
+          <button type="button" class="px-2 py-1 text-slate-400 hover:text-red-500 text-xs font-bold" title="Verwijder">✕</button>
         `;
 
         const inputEl = row.querySelector('input');
-        inputEl.addEventListener('focus', () => {
-          activeSearchTarget = `waypoint-${idx}`;
-        });
+        inputEl.addEventListener('focus', () => { activeSearchTarget = `waypoint-${idx}`; });
         inputEl.addEventListener('input', (e) => {
           triggerCombinedAddressSearch(e.target.value.trim(), `waypoint-${idx}`);
         });
 
-        const [upBtn, downBtn, delBtn] = row.querySelectorAll('button');
-        upBtn.onclick = () => moveWaypoint(idx, -1);
-        downBtn.onclick = () => moveWaypoint(idx, 1);
-        delBtn.onclick = () => removeWaypoint(idx);
+        row.querySelector('button').onclick = () => {
+          AppState.waypoints.splice(idx, 1);
+          SafeStorage.set('so_waypoints_v4', AppState.waypoints);
+          renderWaypointsList();
+          calculateAndRenderRoute();
+        };
 
         container.appendChild(row);
       });
-
-      if (tspBtn) {
-        tspBtn.classList.toggle('hidden', AppState.waypoints.length < 2);
-      }
     }
 
     function addIntermediateWaypoint() {
       const midLat = (AppState.origin.lat + AppState.destination.lat) / 2;
       const midLon = (AppState.origin.lon + AppState.destination.lon) / 2;
-      AppState.waypoints.push({
-        label: 'Kies tussenstop...',
-        lat: midLat,
-        lon: midLon
-      });
-      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
+      AppState.waypoints.push({ label: '', lat: midLat, lon: midLon });
+      SafeStorage.set('so_waypoints_v4', AppState.waypoints);
       renderWaypointsList();
-    }
-
-    function moveWaypoint(index, direction) {
-      const target = index + direction;
-      if (target < 0 || target >= AppState.waypoints.length) return;
-      const temp = AppState.waypoints[index];
-      AppState.waypoints[index] = AppState.waypoints[target];
-      AppState.waypoints[target] = temp;
-      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
-      renderWaypointsList();
-      calculateAndRenderRoute();
-    }
-
-    function removeWaypoint(index) {
-      AppState.waypoints.splice(index, 1);
-      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
-      renderWaypointsList();
-      calculateAndRenderRoute();
     }
 
     function swapOriginAndDestination() {
       const temp = AppState.origin;
       AppState.origin = AppState.destination;
       AppState.destination = temp;
-      SafeStorage.set('so_origin_v3', AppState.origin);
-      SafeStorage.set('so_destination_v3', AppState.destination);
+      SafeStorage.set('so_origin_v4', AppState.origin);
+      SafeStorage.set('so_destination_v4', AppState.destination);
       initInputsFromState();
       calculateAndRenderRoute();
     }
 
-    function optimizeWaypointsTSP() {
-      if (AppState.waypoints.length < 2) return;
-      const remaining = [...AppState.waypoints];
-      const ordered = [];
-      let current = AppState.origin;
-
-      while (remaining.length > 0) {
-        let bestIdx = 0;
-        let bestDist = Infinity;
-        remaining.forEach((wp, i) => {
-          const d = haversineKm(current.lat, current.lon, wp.lat, wp.lon);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = i;
-          }
-        });
-        current = remaining.splice(bestIdx, 1)[0];
-        ordered.push(current);
-      }
-
-      AppState.waypoints = ordered;
-      SafeStorage.set('so_waypoints_v3', AppState.waypoints);
-      renderWaypointsList();
-      calculateAndRenderRoute();
-      showToast('Volgorde van tussenstops geoptimaliseerd (TSP)! ✓');
-    }
-
     /*************************************************************************
-     * WEERGAVE VAN NDW VERKEERSBORDEN OP DE KAART
+     * OPTIONELE VERKEERSBORDEN OP DE KAART (STANDAARD UIT)
      *************************************************************************/
     function toggleRvvSignsLayer() {
       AppState.signsLayerVisible = !AppState.signsLayerVisible;
-      document.getElementById('toggleSignsLabel').textContent = `NDW Borden: ${AppState.signsLayerVisible ? 'Aan' : 'Uit'}`;
-      rvvSignMarkers.forEach((m) => {
-        m.getElement().style.display = AppState.signsLayerVisible ? 'flex' : 'none';
-      });
+      document.getElementById('toggleSignsLabel').textContent =
+        `Verkeersborden op kaart: ${AppState.signsLayerVisible ? 'Aan' : 'Uit'}`;
+
+      if (AppState.signsLayerVisible) {
+        renderSignsOnMap();
+        showToast('Verkeersborden langs route zichtbaar');
+      } else {
+        rvvSignMarkers.forEach((m) => m.remove());
+        rvvSignMarkers = [];
+      }
     }
 
-    async function scanRoadworksAndSigns(notifyUser = false) {
-      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
-      if (!activeRoute || !activeRoute.coords || activeRoute.coords.length < 2) return;
-
+    function renderSignsOnMap() {
       rvvSignMarkers.forEach((m) => m.remove());
       rvvSignMarkers = [];
+      if (!AppState.signsLayerVisible || !map) return;
+
+      const activeRoute = AppState.routes[AppState.selectedRouteIndex];
+      if (!activeRoute || !activeRoute.coords.length) return;
 
       let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
       activeRoute.coords.forEach(([lon, lat]) => {
@@ -2123,89 +1696,34 @@
         if (lon > maxLon) maxLon = lon;
       });
 
-      const pad = 0.04;
-      const localNdwSigns = AppState.ndwSigns
-        .filter(
-          (s) =>
-            s.lat >= minLat - pad &&
-            s.lat <= maxLat + pad &&
-            s.lon >= minLon - pad &&
-            s.lon <= maxLon + pad
-        )
-        .slice(0, 60);
-
-      localNdwSigns.forEach((s) => {
-        const verdict = evaluateNdwSignForVehicle(s, AppState.vehicleMode);
-        const bg =
-          s.code === 'G12A'
-            ? '#0284c7'
-            : verdict === 'nogo'
-            ? '#dc2626'
-            : '#059669';
-        addSignMarkerToMap({
-          lat: s.lat,
-          lon: s.lon,
-          code: s.code,
-          title: `NDW Bord ${s.code}${s.bearing !== null ? ` (${s.bearing}°)` : ''}`,
-          desc:
-            s.desc ||
-            (verdict === 'nogo'
-              ? `Verboden voor ${AppState.vehicleMode === 'brom' ? 'Bromfiets 45' : 'Snorfiets 25'} (Nogo actief)`
-              : 'Toegestaan op deze route'),
-          bg
+      const pad = 0.03;
+      AppState.ndwSigns
+        .filter((s) => s.lat >= minLat - pad && s.lat <= maxLat + pad && s.lon >= minLon - pad && s.lon <= maxLon + pad)
+        .slice(0, 35)
+        .forEach((s) => {
+          const verdict = evaluateNdwSignForVehicle(s, AppState.vehicleMode);
+          const bg = s.code === 'G12A' ? '#0284c7' : verdict === 'nogo' ? '#dc2626' : '#059669';
+          const el = document.createElement('div');
+          el.className = 'px-1.5 py-0.5 rounded-full border border-white text-[9px] font-bold text-white shadow cursor-pointer';
+          el.style.backgroundColor = bg;
+          el.textContent = s.code;
+          el.onclick = (e) => {
+            e.stopPropagation();
+            showToast(`Bord ${s.code}: ${s.desc || 'RVV verkeersbord'}`);
+          };
+          const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([s.lon, s.lat])
+            .addTo(map);
+          rvvSignMarkers.push(marker);
         });
-      });
-
-      if (notifyUser) {
-        showToast(`${localNdwSigns.length} NDW RVV-borden rondom je route getoond op de kaart.`);
-      }
-    }
-
-    function addSignMarkerToMap(signObj) {
-      if (!map) return;
-      const el = document.createElement('div');
-      el.className = 'px-2 py-1 rounded-full border-2 border-white text-[10px] font-black text-white shadow-lg cursor-pointer items-center justify-center';
-      el.style.backgroundColor = signObj.bg;
-      el.style.display = AppState.signsLayerVisible ? 'flex' : 'none';
-      el.textContent = signObj.code;
-      el.onclick = (e) => {
-        e.stopPropagation();
-        showToast(`${signObj.title}: ${signObj.desc}`);
-      };
-
-      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([signObj.lon, signObj.lat])
-        .addTo(map);
-      rvvSignMarkers.push(marker);
     }
 
     /*************************************************************************
-     * 3D NAVIGATIE COCKPIT, SPRAAKNAVIGATIE (NL-NL) & AUDIO SYNTH CHIME
+     * 3D NAVIGATIE COCKPIT & SPRAAK
      *************************************************************************/
-    function playTurnChime() {
-      if (AppState.voiceMuted) return;
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.16);
-        gain.gain.setValueAtTime(0.14, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.34);
-      } catch (err) {}
-    }
-
     function speakDutchInstruction(text) {
       if (AppState.voiceMuted || !('speechSynthesis' in window)) return;
       try {
-        playTurnChime();
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
         utter.lang = 'nl-NL';
@@ -2218,33 +1736,19 @@
       AppState.voiceMuted = !AppState.voiceMuted;
       const btn = document.getElementById('cockpitVoiceBtn');
       if (btn) btn.textContent = AppState.voiceMuted ? '🔇' : '🔊';
-      showToast(AppState.voiceMuted ? 'Spraaknavigatie gedempt' : 'Spraaknavigatie ingeschakeld');
     }
 
     async function requestWakeLock() {
-      const dot = document.getElementById('wakeLockDot');
-      const txt = document.getElementById('wakeLockText');
       try {
         if ('wakeLock' in navigator) {
           AppState.wakeLockSentinel = await navigator.wakeLock.request('screen');
-          if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-          if (txt) txt.textContent = 'WakeLock Actief';
-          showToast('Scherm blijft nu altijd aan op je scooterstuur! 🔆');
-        } else {
-          showToast('WakeLock API wordt niet ondersteund door deze browser.', 'warn');
         }
-      } catch (err) {
-        if (dot) dot.className = 'w-2 h-2 rounded-full bg-amber-400';
-        if (txt) txt.textContent = 'Scherm Aan';
-      }
+      } catch (err) {}
     }
 
     function startNavigationCockpit() {
       const activeRoute = AppState.routes[AppState.selectedRouteIndex];
-      if (!activeRoute || !activeRoute.coords || activeRoute.coords.length < 2) {
-        showToast('Bereken eerst een geldige route voordat je start.', 'warn');
-        return;
-      }
+      if (!activeRoute || !activeRoute.coords || activeRoute.coords.length < 2) return;
 
       AppState.isNavigating = true;
       AppState.gpsLocked = true;
@@ -2253,6 +1757,7 @@
 
       document.getElementById('planningHeader').classList.add('hidden');
       document.getElementById('bottomSheet').classList.add('hidden');
+      document.getElementById('floatingMapControls').classList.add('hidden');
       document.getElementById('cockpitTopBanner').classList.remove('hidden');
       document.getElementById('cockpitBottomHud').classList.remove('hidden');
 
@@ -2268,7 +1773,7 @@
           zoom: 17,
           pitch: 60,
           bearing: initialBearing,
-          duration: 1200
+          duration: 1000
         });
       }
 
@@ -2277,7 +1782,7 @@
 
       const firstStep = activeRoute.maneuvers[0];
       if (firstStep) {
-        speakDutchInstruction(`Navigatie gestart. ${firstStep.instruction}`);
+        speakDutchInstruction(`Route gestart. ${firstStep.instruction}`);
       }
     }
 
@@ -2289,9 +1794,10 @@
       document.getElementById('cockpitBottomHud').classList.add('hidden');
       document.getElementById('planningHeader').classList.remove('hidden');
       document.getElementById('bottomSheet').classList.remove('hidden');
+      document.getElementById('floatingMapControls').classList.remove('hidden');
 
       if (map) {
-        map.easeTo({ pitch: 30, bearing: 0, zoom: 12.4, duration: 800 });
+        map.easeTo({ pitch: 0, bearing: 0, zoom: 12.2, duration: 700 });
         drawAllRoutesOnMap(true);
       }
     }
@@ -2306,7 +1812,7 @@
       document.getElementById('cockpitTurnDistance').textContent =
         distMeters >= 1000 ? `Over ${(distMeters / 1000).toFixed(1)} km` : `Over ${distMeters} m`;
       document.getElementById('cockpitStreetName').textContent = step.streetName || step.instruction;
-      document.getElementById('cockpitRvvAdvice').innerHTML = `<span>🛵</span><span>${step.rvvNote}</span>`;
+      document.getElementById('cockpitRvvAdvice').textContent = step.rvvNote;
 
       const svgEl = document.getElementById('cockpitTurnSvg');
       const instrLower = (step.instruction || '').toLowerCase();
@@ -2320,15 +1826,13 @@
     }
 
     /*************************************************************************
-     * LIVE GPS TRACKING, OFF-ROUTE HERBEREKENING (>30M) & DEMO SIMULATIE
+     * LIVE GPS & TESTRIT SIMULATIE
      *************************************************************************/
     function startBackgroundGpsTracker() {
       if (!('geolocation' in navigator)) return;
       try {
         AppState.watchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            handleLiveGpsPosition(pos.coords);
-          },
+          (pos) => handleLiveGpsPosition(pos.coords),
           () => {},
           { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
         );
@@ -2338,8 +1842,7 @@
     function handleLiveGpsPosition(coords) {
       const lat = coords.latitude;
       const lon = coords.longitude;
-      const speedMs = coords.speed || 0;
-      const speedKmh = Math.max(0, Math.round(speedMs * 3.6));
+      const speedKmh = Math.max(0, Math.round((coords.speed || 0) * 3.6));
       const heading = coords.heading || AppState.currentHeading || 0;
 
       if (AppState.lastGpsPos && speedKmh >= 3) {
@@ -2366,11 +1869,7 @@
 
       const limit = AppState.vehicleMode === 'brom' ? 45 : 25;
       if (badgeEl) {
-        if (speedKmh > limit) {
-          badgeEl.classList.add('overspeed-glow');
-        } else {
-          badgeEl.classList.remove('overspeed-glow');
-        }
+        badgeEl.classList.toggle('overspeed-glow', speedKmh > limit);
       }
     }
 
@@ -2378,10 +1877,10 @@
       if (!map) return;
       if (!userLocationMarker) {
         const el = document.createElement('div');
-        el.className = 'relative w-7 h-7 flex items-center justify-center';
+        el.className = 'relative w-6 h-6 flex items-center justify-center';
         el.innerHTML = `
           <div class="gps-puck-ring"></div>
-          <div class="w-6 h-6 rounded-full bg-emerald-600 border-2 border-white shadow-xl flex items-center justify-center text-white text-xs font-black">▲</div>
+          <div class="w-5 h-5 rounded-full bg-emerald-600 border-2 border-white shadow-md flex items-center justify-center text-white text-[9px] font-black">▲</div>
         `;
         userLocationMarker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' })
           .setLngLat([lon, lat])
@@ -2399,10 +1898,10 @@
       if (AppState.gpsLocked && map) {
         map.easeTo({
           center: [lon, lat],
-          bearing: bearing,
-          pitch: AppState.is3D ? 60 : 0,
-          zoom: 17.2,
-          duration: 500
+          bearing,
+          pitch: 60,
+          zoom: 17,
+          duration: 450
         });
       }
 
@@ -2413,8 +1912,7 @@
       });
 
       if (minDistMeters > 35 && !AppState.simTimer) {
-        AppState.origin = { label: 'Huidige GPS-positie', lat, lon };
-        showToast('Route wordt automatisch herberekend vanaf je huidige positie...', 'info');
+        AppState.origin = { label: 'Huidige locatie', lat, lon };
         calculateAndRenderRoute(true);
         return;
       }
@@ -2426,24 +1924,18 @@
       document.getElementById('cockpitTurnDistance').textContent =
         distToTurnMeters >= 1000 ? `Over ${(distToTurnMeters / 1000).toFixed(1)} km` : `Over ${distToTurnMeters} m`;
       document.getElementById('cockpitStreetName').textContent = nextStep.streetName || nextStep.instruction;
-      document.getElementById('cockpitRvvAdvice').innerHTML = `<span>🛵</span><span>${nextStep.rvvNote}</span>`;
+      document.getElementById('cockpitRvvAdvice').textContent = nextStep.rvvNote;
 
       const stepKey = `step-${AppState.activeManeuverIndex + 1}`;
-      if (distToTurnMeters <= 260 && distToTurnMeters > 80 && !AppState.spokenAnnouncements[`${stepKey}-250`]) {
+      if (distToTurnMeters <= 250 && distToTurnMeters > 70 && !AppState.spokenAnnouncements[`${stepKey}-250`]) {
         AppState.spokenAnnouncements[`${stepKey}-250`] = true;
         speakDutchInstruction(`Over tweehonderdvijftig meter, ${nextStep.instruction}`);
-      } else if (distToTurnMeters <= 60 && distToTurnMeters > 20 && !AppState.spokenAnnouncements[`${stepKey}-50`]) {
-        AppState.spokenAnnouncements[`${stepKey}-50`] = true;
-        speakDutchInstruction(`Over vijftig meter, ${nextStep.instruction}`);
       } else if (distToTurnMeters <= 20) {
         if (!AppState.spokenAnnouncements[`${stepKey}-0`]) {
           AppState.spokenAnnouncements[`${stepKey}-0`] = true;
           speakDutchInstruction(nextStep.instruction);
         }
-        AppState.activeManeuverIndex = Math.min(
-          activeRoute.maneuvers.length - 1,
-          AppState.activeManeuverIndex + 1
-        );
+        AppState.activeManeuverIndex = Math.min(activeRoute.maneuvers.length - 1, AppState.activeManeuverIndex + 1);
       }
     }
 
@@ -2456,15 +1948,14 @@
       if (!activeRoute || activeRoute.coords.length < 2) return;
 
       AppState.simCoordIndex = 0;
-      document.getElementById('demoRideLabel').textContent = 'Stop Demo';
-      showToast('Demo-rit gestart over de exacte Scootmaps legal-graph route!');
+      document.getElementById('demoRideLabel').textContent = '⏹ Stop test';
 
       AppState.simTimer = setInterval(() => {
         const coords = activeRoute.coords;
         if (AppState.simCoordIndex >= coords.length - 1) {
           stopSimulationDemo();
-          speakDutchInstruction('Je hebt je bestemming bereikt.');
-          showToast('Bestemming bereikt! 🏁');
+          speakDutchInstruction('Bestemming bereikt.');
+          showToast('Bestemming bereikt');
           return;
         }
 
@@ -2472,12 +1963,9 @@
         const next = coords[Math.min(coords.length - 1, AppState.simCoordIndex + 3)];
         const bearing = computeBearing(curr[1], curr[0], next[1], next[0]);
         const targetSpeed = AppState.vehicleMode === 'brom' ? 44 : 24;
-        const jitterSpeed = targetSpeed + Math.floor(Math.random() * 3) - 1;
 
-        const segKm = haversineKm(curr[1], curr[0], next[1], next[0]);
-        addDistanceToOdometer(segKm);
-
-        updateSpeedometerUI(jitterSpeed);
+        addDistanceToOdometer(haversineKm(curr[1], curr[0], next[1], next[0]));
+        updateSpeedometerUI(targetSpeed);
         placeOrUpdateUserPuck(next[1], next[0], bearing);
         processNavigationProgress(next[1], next[0], bearing);
 
@@ -2491,30 +1979,25 @@
         AppState.simTimer = null;
       }
       const lbl = document.getElementById('demoRideLabel');
-      if (lbl) lbl.textContent = 'Simuleer Rit';
+      if (lbl) lbl.textContent = '▶ Testrit';
       updateSpeedometerUI(0);
     }
 
     function useCurrentGpsForOrigin() {
-      if (!('geolocation' in navigator)) {
-        showToast('Geolocatie wordt niet ondersteund door je browser.', 'warn');
-        return;
-      }
-      showToast('Huidige GPS-positie ophalen...');
+      if (!('geolocation' in navigator)) return;
+      showToast('GPS-locatie ophalen...');
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           AppState.origin = {
-            label: 'Mijn Huidige GPS-locatie',
+            label: 'Huidige locatie',
             lat: pos.coords.latitude,
             lon: pos.coords.longitude
           };
-          SafeStorage.set('so_origin_v3', AppState.origin);
+          SafeStorage.set('so_origin_v4', AppState.origin);
           document.getElementById('originInput').value = AppState.origin.label;
           calculateAndRenderRoute();
         },
-        () => {
-          showToast('Kon huidige GPS-locatie niet ophalen. Controleer je locatierechten.', 'warn');
-        },
+        () => showToast('Kon locatie niet ophalen'),
         { enableHighAccuracy: true, timeout: 8000 }
       );
     }
@@ -2526,9 +2009,9 @@
       if (map && target) {
         map.easeTo({
           center: [target.lon, target.lat],
-          zoom: AppState.isNavigating ? 17 : 13.2,
-          pitch: AppState.is3D ? 60 : 0,
-          duration: 700
+          zoom: AppState.isNavigating ? 17 : 13,
+          pitch: AppState.is3D ? 55 : 0,
+          duration: 600
         });
       }
     }
@@ -2537,50 +2020,29 @@
       const dot = document.getElementById('gpsFollowDot');
       if (dot) {
         dot.className = AppState.gpsLocked
-          ? 'w-2.5 h-2.5 rounded-full bg-emerald-400'
-          : 'w-2.5 h-2.5 rounded-full bg-amber-400';
+          ? 'w-2 h-2 rounded-full bg-emerald-500'
+          : 'w-2 h-2 rounded-full bg-amber-400';
       }
     }
 
     function toggleMapPitch() {
       AppState.is3D = !AppState.is3D;
       const btn = document.getElementById('pitchToggleBtn');
-      if (btn) btn.textContent = AppState.is3D ? '3D' : '2D';
+      if (btn) btn.textContent = AppState.is3D ? '2D' : '3D';
       if (map) {
-        map.easeTo({ pitch: AppState.is3D ? 60 : 0, duration: 500 });
+        map.easeTo({ pitch: AppState.is3D ? 55 : 0, duration: 450 });
       }
-    }
-
-    function mapZoom(delta) {
-      if (!map) return;
-      map.zoomTo(map.getZoom() + delta, { duration: 250 });
-    }
-
-    function toggleDayNightUi() {
-      AppState.highContrastNight = !AppState.highContrastNight;
-      const btn = document.getElementById('dayNightBtn');
-      if (btn) btn.textContent = AppState.highContrastNight ? '☀️' : '🌙';
-      const mapEl = document.getElementById('map');
-      if (mapEl) {
-        mapEl.style.filter = AppState.highContrastNight
-          ? 'brightness(0.82) contrast(1.18) saturate(1.1)'
-          : 'none';
-      }
-      showToast(AppState.highContrastNight ? 'Nacht-contrastmodus geactiveerd' : 'Dagmodus geactiveerd');
     }
 
     function openInGoogleMaps() {
       const orig = `${AppState.origin.lat},${AppState.origin.lon}`;
       const dest = `${AppState.destination.lat},${AppState.destination.lon}`;
-      const wps = AppState.waypoints.map((w) => `${w.lat},${w.lon}`).join('|');
-      const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(orig)}&destination=${encodeURIComponent(dest)}${
-        wps ? `&waypoints=${encodeURIComponent(wps)}` : ''
-      }&travelmode=bicycling`;
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(orig)}&destination=${encodeURIComponent(dest)}&travelmode=bicycling`;
       window.open(url, '_blank', 'noopener');
     }
 
     /*************************************************************************
-     * KILOMETERTELLER & ONDERHOUDSMONITOR
+     * KILOMETERTELLER, FAVORIETEN & VERTREK-CHECK
      *************************************************************************/
     function addDistanceToOdometer(deltaKm) {
       AppState.odometer.totalKm = Number((AppState.odometer.totalKm + deltaKm).toFixed(2));
@@ -2593,15 +2055,12 @@
     function syncTotalOdometer() {
       const input = document.getElementById('odoSyncInput');
       const val = parseFloat(input.value);
-      if (isNaN(val) || val < 0) {
-        showToast('Voer een geldige kilometerstand in.', 'warn');
-        return;
-      }
+      if (isNaN(val) || val < 0) return;
       AppState.odometer.totalKm = Number(val.toFixed(1));
       SafeStorage.set('so_odometer', AppState.odometer);
       input.value = '';
       renderOdometerAndMaintenance();
-      showToast(`Kilometerteller gelijkgesteld op ${AppState.odometer.totalKm} km!`);
+      showToast('Tellerstand bijgewerkt');
     }
 
     function resetTripCounter(tripNum) {
@@ -2609,14 +2068,13 @@
       if (tripNum === 2) AppState.odometer.trip2Km = 0;
       SafeStorage.set('so_odometer', AppState.odometer);
       renderOdometerAndMaintenance();
-      showToast(`Dagteller Trip ${tripNum} gereset naar 0.00 km.`);
     }
 
     function registerMaintenanceDone() {
       AppState.odometer.lastServiceKm = AppState.odometer.totalKm;
       SafeStorage.set('so_odometer', AppState.odometer);
       renderOdometerAndMaintenance();
-      showToast('Onderhoudsbeurt geregistreerd op huidige kilometerstand! 🔧');
+      showToast('Onderhoudsbeurt opgeslagen');
     }
 
     function renderOdometerAndMaintenance() {
@@ -2626,9 +2084,8 @@
 
       const drivenSinceService = Math.max(0, AppState.odometer.totalKm - (AppState.odometer.lastServiceKm || 0));
       const intervals = [
-        { name: 'Motorolie verversen (4-takt)', limitKm: 3000 },
-        { name: 'V-snaar & Variorollen inspectie', limitKm: 6000 },
-        { name: 'Bougie, Luchtfilter & Remmen', limitKm: 9000 }
+        { name: 'Motorolie (elke 3.000 km)', limitKm: 3000 },
+        { name: 'V-snaar & rollen (elke 6.000 km)', limitKm: 6000 }
       ];
 
       const container = document.getElementById('maintenanceBarsContainer');
@@ -2638,25 +2095,20 @@
       intervals.forEach((item) => {
         const remaining = Math.max(0, item.limitKm - (drivenSinceService % item.limitKm));
         const pct = Math.min(100, Math.round(((item.limitKm - remaining) / item.limitKm) * 100));
-        const isWarn = remaining < 350;
-
         const row = document.createElement('div');
         row.innerHTML = `
-          <div class="flex justify-between font-bold ${isWarn ? 'text-amber-300' : 'text-slate-300'}">
+          <div class="flex justify-between font-semibold text-slate-600">
             <span>${item.name}</span>
-            <span>Over ${remaining.toFixed(0)} km</span>
+            <span>over ${remaining.toFixed(0)} km</span>
           </div>
-          <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-1">
-            <div class="h-full ${isWarn ? 'bg-amber-400' : 'bg-emerald-500'}" style="width: ${pct}%"></div>
+          <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+            <div class="h-full bg-emerald-500" style="width: ${pct}%"></div>
           </div>
         `;
         container.appendChild(row);
       });
     }
 
-    /*************************************************************************
-     * FAVORIETEN BEHEER
-     *************************************************************************/
     function renderFavoritesList() {
       const container = document.getElementById('favoritesList');
       if (!container) return;
@@ -2664,15 +2116,15 @@
 
       AppState.favorites.forEach((fav, idx) => {
         const card = document.createElement('div');
-        card.className = 'bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-2';
+        card.className = 'bg-white border border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-2';
         card.innerHTML = `
           <div class="min-w-0">
-            <div class="text-sm font-extrabold text-white truncate">${fav.title}</div>
+            <div class="text-sm font-bold text-slate-800 truncate">${fav.title}</div>
             <div class="text-xs text-slate-400 truncate">${fav.origin.label} → ${fav.destination.label}</div>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
-            <button type="button" class="touch-btn px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Laad</button>
-            <button type="button" class="touch-btn px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-red-400 text-xs font-bold">✕</button>
+            <button type="button" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Kies</button>
+            <button type="button" class="px-2 py-1.5 rounded-xl text-slate-400 hover:text-red-500 text-xs font-bold">✕</button>
           </div>
         `;
 
@@ -2681,9 +2133,9 @@
           AppState.origin = { ...fav.origin };
           AppState.destination = { ...fav.destination };
           AppState.waypoints = Array.isArray(fav.waypoints) ? [...fav.waypoints] : [];
-          SafeStorage.set('so_origin_v3', AppState.origin);
-          SafeStorage.set('so_destination_v3', AppState.destination);
-          SafeStorage.set('so_waypoints_v3', AppState.waypoints);
+          SafeStorage.set('so_origin_v4', AppState.origin);
+          SafeStorage.set('so_destination_v4', AppState.destination);
+          SafeStorage.set('so_waypoints_v4', AppState.waypoints);
           initInputsFromState();
           renderWaypointsList();
           switchBottomTab('route');
@@ -2692,7 +2144,7 @@
 
         delBtn.onclick = () => {
           AppState.favorites.splice(idx, 1);
-          SafeStorage.set('so_favorites_v3', AppState.favorites);
+          SafeStorage.set('so_favorites_v4', AppState.favorites);
           renderFavoritesList();
         };
 
@@ -2708,20 +2160,17 @@
         destination: { ...AppState.destination },
         waypoints: [...AppState.waypoints]
       });
-      SafeStorage.set('so_favorites_v3', AppState.favorites);
+      SafeStorage.set('so_favorites_v4', AppState.favorites);
       renderFavoritesList();
-      showToast('Route opgeslagen bij je Favorieten! ⭐');
+      showToast('Route opgeslagen');
     }
 
-    /*************************************************************************
-     * VERTREK-CHECK MODAL
-     *************************************************************************/
     const DEPARTURE_CHECKS = [
-      { key: 'helmet', title: '1. Helmplicht gecontroleerd', sub: 'Goedgekeurde ECE 22.05 / 22.06 of NTA 8776 helm vastgegespt' },
-      { key: 'lights', title: '2. Verlichting & knipperlichten', sub: 'Dimlicht, achterlicht, remlicht en richtingaanwijzers werken' },
-      { key: 'fuel', title: '3. Brandstofpeil (E5 / Euro 98) of Accu', sub: 'Voldoende E5-benzine (voorkomt ethanol-schade) of acculading' },
-      { key: 'tires', title: '4. Bandenspanning & remmen', sub: 'Voorband ~2.0 bar, achterband ~2.25 bar en remdruk gecontroleerd' },
-      { key: 'mount', title: '5. Telefoon vergrendeld op stuurhouder', sub: 'Stevig vastgezet voor handsfree 3D-cockpit navigatie' }
+      { key: 'helmet', title: 'Helm vastgegespt (ECE / NTA 8776)' },
+      { key: 'lights', title: 'Verlichting & knipperlichten gecontroleerd' },
+      { key: 'fuel', title: 'Voldoende E5-brandstof of acculading' },
+      { key: 'tires', title: 'Bandenspanning en remmen in orde' },
+      { key: 'mount', title: 'Telefoon stevig in stuurhouder' }
     ];
 
     function renderDepartureChecklist() {
@@ -2733,18 +2182,13 @@
         const checked = !!AppState.checklist[item.key];
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = `w-full text-left p-3 rounded-2xl border transition flex items-center justify-between gap-3 ${
-          checked
-            ? 'bg-emerald-950/50 border-emerald-500/60 text-white'
-            : 'bg-slate-950 border-slate-800 text-slate-300'
+        btn.className = `w-full text-left px-3.5 py-2.5 rounded-xl border transition flex items-center justify-between ${
+          checked ? 'bg-emerald-50 border-emerald-200 text-slate-900' : 'bg-slate-50 border-slate-200 text-slate-500'
         }`;
         btn.innerHTML = `
-          <div>
-            <div class="text-sm font-extrabold">${item.title}</div>
-            <div class="text-xs text-slate-400">${item.sub}</div>
-          </div>
-          <span class="w-7 h-7 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
-            checked ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
+          <span class="text-xs font-bold">${item.title}</span>
+          <span class="w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold ${
+            checked ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-300'
           }">${checked ? '✓' : ''}</span>
         `;
         btn.onclick = () => {
@@ -2765,24 +2209,15 @@
       document.getElementById('departureCheckModal').classList.add('hidden');
     }
 
-    function checkAllDepartureItems() {
-      DEPARTURE_CHECKS.forEach((i) => {
-        AppState.checklist[i.key] = true;
-      });
-      SafeStorage.set('so_checklist', AppState.checklist);
-      renderDepartureChecklist();
-    }
-
     function confirmDepartureCheckAndStart() {
       closeDepartureCheckModal();
-      showToast('Vertrek-Check compleet. Goede en veilige reis! 🛵');
     }
 
     function switchBottomTab(tabName) {
       const tabs = {
         route: { content: 'tabContentRoute', btn: 'navTabRoute' },
         favorites: { content: 'tabContentFavorites', btn: 'navTabFavorites' },
-        odometer: { content: 'tabContentOdometer', btn: 'navTabOdometer' }
+        scooter: { content: 'tabContentScooter', btn: 'navTabScooter' }
       };
 
       Object.keys(tabs).forEach((key) => {
@@ -2790,10 +2225,10 @@
         const bEl = document.getElementById(tabs[key].btn);
         if (key === tabName) {
           cEl.classList.remove('hidden');
-          bEl.className = 'touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-emerald-400 font-bold text-xs';
+          bEl.className = 'flex flex-col items-center justify-center py-1 text-emerald-600 font-bold text-[11px]';
         } else {
           cEl.classList.add('hidden');
-          bEl.className = 'touch-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-bold text-xs';
+          bEl.className = 'flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-700 font-semibold text-[11px]';
         }
       });
 
@@ -2805,9 +2240,7 @@
     function toggleSheetCollapse(forceState) {
       AppState.sheetCollapsed = typeof forceState === 'boolean' ? forceState : !AppState.sheetCollapsed;
       const body = document.getElementById('sheetBody');
-      const chevron = document.getElementById('sheetCollapseChevron');
       if (body) body.classList.toggle('hidden', AppState.sheetCollapsed);
-      if (chevron) chevron.textContent = AppState.sheetCollapsed ? '▲' : '▼';
     }
   </script>
 </body>
