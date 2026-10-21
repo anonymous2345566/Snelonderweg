@@ -67,7 +67,7 @@
       background: transparent;
     }
     .custom-scroll::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.3);
+      background: rgba(148, 163, 184, 0.35);
       border-radius: 9999px;
     }
 
@@ -112,9 +112,6 @@
   <!-- KAART CONTAINER -->
   <div id="map"></div>
 
-  <!-- Verborgen File-Input voor optionele ndw-signs.json upload via instellingen -->
-  <input id="ndwFileInput" type="file" accept=".json,application/json" class="hidden" onchange="handleNdwJsonFileUpload(event)" />
-
   <!-- SUBTIELE MELDINGEN (TOAST) -->
   <div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-[90%] max-w-sm"></div>
 
@@ -136,7 +133,7 @@
             id="globalSearchInput"
             type="text"
             autocomplete="off"
-            placeholder="Waarheen?"
+            placeholder="Zoek winkel, school, adres of plaats (bijv. Albert Heijn Winschoten)..."
             class="w-full bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none py-2 font-medium"
           />
           <button id="clearGlobalSearchBtn" class="hidden p-1.5 text-slate-400 hover:text-slate-600 text-xs" title="Wissen">
@@ -177,16 +174,16 @@
         </button>
       </div>
 
-      <!-- Autocomplete Dropdown -->
+      <!-- Autocomplete Dropdown met Bedrijfsnaam + Exact BAG Adres -->
       <div
         id="searchResultsDropdown"
-        class="hidden pointer-events-auto bg-white/98 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto custom-scroll divide-y divide-slate-100 max-w-xl"
+        class="hidden pointer-events-auto bg-white/98 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl max-h-72 overflow-y-auto custom-scroll divide-y divide-slate-100 max-w-2xl"
       ></div>
     </div>
   </header>
 
   <!-- =====================================================================
-       2. 3D NAVIGATIE COCKPIT BOVENSTE BANNER (ALLEEN TIJDENS HET RIJDEN)
+       2. 3D NAVIGATIE COCKPIT BOVENSTE BANNER (TIJDENS HET RIJDEN)
   ====================================================================== -->
   <section id="cockpitTopBanner" class="hidden fixed top-0 inset-x-0 z-40 p-3 sm:p-4 pointer-events-none">
     <div class="max-w-xl mx-auto pointer-events-auto">
@@ -220,7 +217,7 @@
   </section>
 
   <!-- =====================================================================
-       3. SUBTIELE KAARTKNOPPEN RECHTSONDER (ALLEEN GPS & 2D/3D)
+       3. SUBTIELE KAARTKNOPPEN RECHTSONDER (GPS & 2D/3D)
   ====================================================================== -->
   <aside id="floatingMapControls" class="fixed right-3 bottom-72 sm:bottom-80 z-20 flex flex-col gap-2 pointer-events-auto transition-all">
     <button
@@ -248,12 +245,11 @@
   </aside>
 
   <!-- =====================================================================
-       4. ONDERSTE HUD TIJDENS HET RIJDEN (SNELHEID + TIJD/AFSTAND + STOP)
+       4. ONDERSTE HUD TIJDENS HET RIJDEN
   ====================================================================== -->
   <section id="cockpitBottomHud" class="hidden fixed bottom-0 inset-x-0 z-40 p-3 sm:p-5 pointer-events-none">
     <div class="max-w-xl mx-auto flex flex-col gap-3 pointer-events-auto">
       <div class="flex items-end justify-between">
-        <!-- Snelheidsmeter -->
         <div
           id="speedometerBadge"
           class="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-slate-900/95 backdrop-blur border-2 border-emerald-500 shadow-xl flex flex-col items-center justify-center transition-all"
@@ -262,7 +258,6 @@
           <span class="text-[10px] font-bold uppercase text-slate-400 mt-1">km/u</span>
         </div>
 
-        <!-- Simuleer & Centreer knoppen -->
         <div class="flex items-center gap-2">
           <button
             id="demoRideBtn"
@@ -283,7 +278,6 @@
         </div>
       </div>
 
-      <!-- Strakke witte statusbalk -->
       <div class="bg-white text-slate-900 rounded-3xl shadow-2xl p-3 sm:p-4 flex items-center justify-between gap-3 border border-slate-200">
         <div class="flex-1 grid grid-cols-3 text-center divide-x divide-slate-100">
           <div>
@@ -312,12 +306,11 @@
   </section>
 
   <!-- =====================================================================
-       5. RUSTIGE ONDERSTE LADE ("BOTTOM SHEET" ZOALS SCOOTMAPS)
+       5. RUSTIGE ONDERSTE LADE ("BOTTOM SHEET")
   ====================================================================== -->
   <section id="bottomSheet" class="fixed bottom-0 inset-x-0 z-30 pointer-events-none">
     <div class="max-w-4xl mx-auto bg-[#f8f7f4]/95 backdrop-blur-xl border-t border-slate-200/90 rounded-t-3xl shadow-2xl pointer-events-auto flex flex-col max-h-[62vh]">
       
-      <!-- Subtiel sleepbalkje om paneel kleiner/groter te maken -->
       <div
         onclick="toggleSheetCollapse()"
         class="w-full pt-2.5 pb-1 px-5 flex items-center justify-between cursor-pointer select-none"
@@ -325,18 +318,15 @@
         <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto"></div>
       </div>
 
-      <!-- Inhoud van het paneel -->
       <div id="sheetBody" class="px-5 pt-1 pb-4 overflow-y-auto custom-scroll space-y-3.5">
 
         <!-- TAB 1: KAART & ROUTEPLANNER -->
         <div id="tabContentRoute" class="space-y-3">
-          <!-- Rustige begroeting -->
           <div class="flex items-center justify-between">
             <div>
               <h1 id="dynamicGreeting" class="text-lg sm:text-xl font-extrabold text-slate-900 leading-tight">Goedemiddag</h1>
               <p class="text-xs text-slate-500">Waar wil je naartoe?</p>
             </div>
-            <!-- Alleen zichtbaar als er meerdere route-opties zijn -->
             <div id="routeAlternativesContainer" class="flex items-center gap-1.5"></div>
           </div>
 
@@ -352,7 +342,7 @@
                     id="originInput"
                     type="text"
                     autocomplete="off"
-                    placeholder="Kies vertrekpunt..."
+                    placeholder="Kies vertrekpunt (adres, winkel of plaats)..."
                     class="w-full bg-transparent text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none pt-0.5 truncate"
                   />
                 </div>
@@ -366,7 +356,7 @@
                 </button>
               </div>
 
-              <!-- Eventuele tussenstops (standaard verborgen tot je op + klikt) -->
+              <!-- Eventuele tussenstops -->
               <div id="waypointsContainer" class="space-y-1.5 pl-4 border-l border-dashed border-slate-200"></div>
 
               <div class="border-t border-slate-100"></div>
@@ -380,7 +370,7 @@
                     id="destinationInput"
                     type="text"
                     autocomplete="off"
-                    placeholder="Kies bestemming..."
+                    placeholder="Bijv. Albert Heijn Winschoten of adres..."
                     class="w-full bg-transparent text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none pt-0.5 truncate"
                   />
                 </div>
@@ -453,10 +443,10 @@
           <div id="favoritesList" class="space-y-2"></div>
         </div>
 
-        <!-- TAB 3: MIJN SCOOTER & EXTRA OPTIES (TELLER, CHECKLIST & KAARTOPTIES) -->
+        <!-- TAB 3: MIJN SCOOTER & EXTRA OPTIES -->
         <div id="tabContentScooter" class="hidden space-y-3 pt-1">
           <div class="flex items-center justify-between">
-            <h3 class="text-base font-extrabold text-slate-900">Mijn Scooter & Opties</h3>
+            <h3 class="text-base font-extrabold text-slate-900">Mijn Scooter</h3>
             <button
               type="button"
               onclick="openDepartureCheckModal()"
@@ -533,7 +523,7 @@
             <div id="maintenanceBarsContainer" class="space-y-2 text-xs"></div>
           </div>
 
-          <!-- Rustige lijst met geavanceerde kaartopties (uit het hoofdscherm gehaald) -->
+          <!-- Rustige kaartopties -->
           <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
@@ -548,15 +538,7 @@
               onclick="openInGoogleMaps()"
               class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700"
             >
-              🗺️ Open in Google Maps
-            </button>
-
-            <button
-              type="button"
-              onclick="document.getElementById('ndwFileInput').click()"
-              class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700"
-            >
-              📥 <span id="ndwCountBadge">Laad ndw-signs.json</span>
+              🗺️ Open route in Google Maps
             </button>
           </div>
         </div>
@@ -631,7 +613,7 @@
   </div>
 
   <!-- =====================================================================
-       JAVASCRIPT ENGINE: BROUTER LEGAL-GRAPH + NDW-SIGNS FILTER
+       JAVASCRIPT ENGINE: LANDELIJKE LIVE RVV-SCANNER + POI ADRESZOEKER
   ====================================================================== -->
   <script>
     const SafeStorage = {
@@ -650,49 +632,41 @@
       }
     };
 
-    // Exacte geverifieerde Scootmaps-route (C.G.Wiegersweg 9 -> Dollard College Pontis Winschoten, 8876m, 710s)
-    const SCOOTMAPS_VERIFIED_COORDS_WIEGERSWEG_PONTIS = [
-      [7.103,53.195],[7.1027,53.19504],[7.10233,53.19501],[7.10233,53.19498],[7.10236,53.1947],[7.10238,53.19458],[7.1024,53.1944],[7.10241,53.19431],[7.10243,53.19412],[7.10246,53.19392],[7.1025,53.19361],[7.10318,53.18814],[7.10335,53.18693],[7.10339,53.18676],[7.10346,53.18662],[7.10356,53.18647],[7.1038,53.18623],[7.10551,53.18519],[7.10706,53.18424],[7.1084,53.18338],[7.10857,53.18328],[7.10941,53.18272],[7.10949,53.18261],[7.10894,53.18246],[7.10868,53.18239],[7.10822,53.18225],[7.10778,53.18209],[7.10688,53.18167],[7.10552,53.18112],[7.10545,53.18109],[7.10519,53.18098],[7.1051,53.18093],[7.10478,53.18068],[7.10409,53.18009],[7.10398,53.18],[7.10284,53.17909],[7.10221,53.1786],[7.10184,53.17831],[7.10171,53.1782],[7.10169,53.17819],[7.10122,53.17778],[7.10128,53.17765],[7.10117,53.1776],[7.10098,53.1775],[7.10079,53.17739],[7.10067,53.17732],[7.10056,53.17725],[7.10045,53.17717],[7.10034,53.17709],[7.10018,53.17696],[7.0999,53.17675],[7.0997,53.17659],[7.09958,53.1765],[7.09937,53.17633],[7.0992,53.1762],[7.09903,53.17606],[7.09879,53.17587],[7.09856,53.17569],[7.09848,53.17562],[7.09806,53.17526],[7.09795,53.17517],[7.09784,53.17508],[7.09771,53.17498],[7.09758,53.17487],[7.09732,53.17465],[7.09712,53.17449],[7.09689,53.1743],[7.09678,53.17421],[7.09662,53.17408],[7.0965,53.17399],[7.09639,53.1739],[7.09617,53.17372],[7.0961,53.1736],[7.09581,53.17336],[7.09571,53.17333],[7.09555,53.17321],[7.09545,53.17313],[7.09533,53.17304],[7.09515,53.17289],[7.09503,53.17278],[7.0949,53.17268],[7.09473,53.17253],[7.09463,53.17245],[7.09447,53.17232],[7.09432,53.17219],[7.09407,53.17198],[7.09386,53.1718],[7.09362,53.17159],[7.0935,53.17149],[7.0934,53.1714],[7.0932,53.17123],[7.09303,53.17108],[7.0928,53.17089],[7.09256,53.17068],[7.09244,53.17058],[7.09224,53.17041],[7.09214,53.17032],[7.09204,53.17024],[7.09175,53.17],[7.09153,53.16981],[7.0914,53.16971],[7.09124,53.16958],[7.09104,53.16941],[7.09084,53.16924],[7.09073,53.16914],[7.09048,53.16893],[7.09033,53.1688],[7.09024,53.16872],[7.08979,53.16835],[7.08958,53.16816],[7.0892,53.16785],[7.08905,53.16773],[7.08902,53.16771],[7.08893,53.16763],[7.08857,53.16732],[7.08792,53.16679],[7.08759,53.16652],[7.08733,53.1663],[7.0871,53.16611],[7.08672,53.16581],[7.08655,53.16567],[7.08639,53.16555],[7.08623,53.16541],[7.0859,53.16515],[7.08572,53.16501],[7.08526,53.16461],[7.08516,53.16453],[7.08495,53.16435],[7.08476,53.16419],[7.08452,53.16399],[7.08415,53.16367],[7.08403,53.16358],[7.08367,53.16327],[7.08345,53.16308],[7.08313,53.16281],[7.08285,53.16258],[7.08253,53.16233],[7.08215,53.16203],[7.08185,53.1618],[7.08156,53.16156],[7.08099,53.16113],[7.08085,53.16102],[7.08059,53.16082],[7.08048,53.16074],[7.08023,53.16054],[7.07984,53.16024],[7.07933,53.15985],[7.07906,53.15964],[7.07875,53.15941],[7.0785,53.15921],[7.07799,53.15883],[7.07777,53.15865],[7.07748,53.15843],[7.07685,53.15794],[7.0764,53.1576],[7.07568,53.15703],[7.07453,53.15614],[7.07427,53.15594],[7.07393,53.15567],[7.07361,53.15543],[7.07331,53.15525],[7.07316,53.15519],[7.07271,53.155],[7.07161,53.15454],[7.07112,53.15434],[7.07072,53.15417],[7.07033,53.15402],[7.07011,53.15394],[7.06986,53.15387],[7.06968,53.15382],[7.06946,53.15377],[7.0692,53.15372],[7.06892,53.15368],[7.06862,53.15365],[7.06831,53.15363],[7.06778,53.15361],[7.06717,53.15361],[7.06625,53.15366],[7.06596,53.1537],[7.06538,53.15381],[7.06479,53.15398],[7.06396,53.15432],[7.06316,53.15467],[7.06169,53.15531],[7.06083,53.15569],[7.05998,53.15607],[7.05986,53.15612],[7.0596,53.15623],[7.05931,53.15634],[7.05911,53.1564],[7.05875,53.15652],[7.05795,53.15676],[7.05774,53.15683],[7.05756,53.15684],[7.05743,53.15684],[7.05725,53.15682],[7.05706,53.15678],[7.05702,53.15678],[7.05705,53.1569],[7.05697,53.15703],[7.0569,53.15709],[7.05673,53.15714],[7.05632,53.15725],[7.05599,53.15733],[7.05582,53.15738],[7.05569,53.15741],[7.05558,53.15737],[7.05538,53.1573],[7.05515,53.15724],[7.055,53.15724],[7.05485,53.15726],[7.05483,53.15721],[7.0547,53.15669],[7.05467,53.15657],[7.05463,53.15642],[7.05463,53.15641],[7.0546,53.1563],[7.05455,53.15614],[7.0545,53.15593],[7.05455,53.1558],[7.05464,53.15575],[7.05458,53.1556],[7.05439,53.15541],[7.05428,53.1553],[7.05418,53.1552],[7.05394,53.15496],[7.05392,53.15494],[7.0539,53.15492],[7.05389,53.1549],[7.05383,53.15485],[7.05352,53.15453],[7.0532,53.1542],[7.053,53.154],[7.05279,53.15383],[7.05257,53.15366],[7.05246,53.15358],[7.05235,53.15349],[7.05214,53.15333],[7.05201,53.15322],[7.0519,53.15314],[7.05173,53.15299],[7.05136,53.15264],[7.05056,53.15188],[7.05057,53.15186],[7.05061,53.15185],[7.05065,53.15183],[7.05069,53.15181],[7.05067,53.15172],[7.05051,53.15165],[7.05044,53.15163],[7.05011,53.15132],[7.04978,53.151],[7.04964,53.15087],[7.04963,53.15083],[7.04957,53.15085],[7.04938,53.1507],[7.04924,53.15064],[7.04911,53.15064],[7.04905,53.15062],[7.04895,53.15056],[7.04893,53.15053],[7.04894,53.15041],[7.04898,53.15038],[7.04886,53.1502],[7.0488,53.15012],[7.0488,53.15008],[7.04858,53.14987],[7.04819,53.1495],[7.0478,53.14913],[7.04723,53.14861],[7.04634,53.14764],[7.04619,53.14745],[7.04602,53.14724],[7.04551,53.14665],[7.04566,53.14654],[7.04561,53.1464],[7.04549,53.14635],[7.04533,53.14634],[7.04495,53.14558],[7.04487,53.14541],[7.04464,53.14492],[7.04452,53.14495],[7.04392,53.14505],[7.04353,53.14511],[7.0434,53.14514],[7.04297,53.14521],[7.0428,53.14523],[7.04263,53.14526],[7.04228,53.14532],[7.04185,53.14539],[7.04167,53.14536],[7.04151,53.14524],[7.04154,53.14526],[7.04062,53.14573],[7.041,53.146]
-    ];
-
-    const BUILTIN_NDW_SIGNS = [
-      { lon: 7.0255416284743, lat: 53.152663781563, code: 'G11', bearing: 0, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Winschoten / Pieter Smitbrug' },
-      { lon: 7.0215076193844, lat: 53.113950431337, code: 'G13', bearing: 270, validated: 'n', source: 'ndw', desc: 'Onverplicht fietspad Zuiderveen' },
-      { lon: 7.13249870789347, lat: 53.0864423967022, code: 'G11', bearing: 309, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Bellingwolde' },
-      { lon: 7.18053371004518, lat: 53.0817237268057, code: 'G13', bearing: 308, validated: 'n', source: 'ndw', desc: 'Onverplicht fietspad Grensgebied' },
-      { lon: 6.9758832537212, lat: 53.171878374405, code: 'G11', bearing: 270, validated: 'n', source: 'ndw', desc: 'Verplicht fietspad Midwolda / Scheemda' },
-      { lon: 7.0442, lat: 53.1605, code: 'C13', bearing: 180, validated: 'j', source: 'ndw', desc: 'De Blauwe Roos N367 (Gesloten voor brom-/snorfietsen)' },
-      { lon: 7.0265, lat: 53.1578, code: 'G11', bearing: 180, validated: 'j', source: 'ndw', desc: 'Pieter Smitbrug (Verplicht fietspad G11)' },
-      { lon: 7.0815, lat: 53.1732, code: 'G11', bearing: 270, validated: 'j', source: 'ndw', desc: 'Reiderwolde Natuurpad (Verplicht fietspad G11)' },
-      { lon: 7.0546, lat: 53.1564, code: 'G12A', bearing: 180, validated: 'j', source: 'ndw', desc: 'Beertsterbrug / Beertsterweg (Verplicht fiets-/bromfietspad G12a)' },
-      { lon: 7.0490, lat: 53.1505, code: 'G12A', bearing: 200, validated: 'j', source: 'ndw', desc: 'Beertsterweg Winschoten (G12a)' }
+    // Basis-set bekende RVV-punten in Oost-Groningen (wordt voor elke route in NL live aangevuld via Overpass + NDW!)
+    const BASE_KNOWN_SIGNS = [
+      { lon: 7.0442, lat: 53.1605, code: 'C13', validated: 'j', desc: 'De Blauwe Roos N367 (Verboden voor brom-/snorfietsen)' },
+      { lon: 7.0265, lat: 53.1578, code: 'G11', validated: 'j', desc: 'Pieter Smitbrug Winschoten (Verplicht fietspad G11)' },
+      { lon: 7.02554, lat: 53.15266, code: 'G11', validated: 'n', desc: 'Verplicht fietspad Winschoten (G11)' },
+      { lon: 7.0815, lat: 53.1732, code: 'G11', validated: 'j', desc: 'Reiderwolde fietspad (Verplicht fietspad G11)' },
+      { lon: 7.0546, lat: 53.1564, code: 'G12A', validated: 'j', desc: 'Beertsterbrug / Beertsterweg (Verplicht fiets-/bromfietspad G12a)' },
+      { lon: 7.0490, lat: 53.1505, code: 'G12A', validated: 'j', desc: 'Beertsterweg Winschoten (Verplicht fiets-/bromfietspad G12a)' }
     ];
 
     const DEFAULT_ORIGIN = {
-      label: 'C.G.Wiegersweg 9',
+      label: 'C.G.Wiegersweg 9, 9684 EH Finsterwolde',
       lat: 53.1954129,
       lon: 7.1025924
     };
     const DEFAULT_DESTINATION = {
-      label: 'Dollard College Pontis Winschoten',
+      label: 'Dollard College Pontis — Beertsterweg, Winschoten',
       lat: 53.1464944,
       lon: 7.040692
     };
 
     const AppState = {
-      vehicleMode: SafeStorage.get('so_vehicle_mode_v4', 'brom'),
+      vehicleMode: SafeStorage.get('so_vehicle_mode_v5', 'brom'),
       mapStyleIndex: 0,
       is3D: false,
-      signsLayerVisible: false, // Standaard uit voor een rustig kaartbeeld
+      signsLayerVisible: false,
       sheetCollapsed: false,
       voiceMuted: false,
       wakeLockSentinel: null,
 
-      origin: SafeStorage.get('so_origin_v4', DEFAULT_ORIGIN),
-      destination: SafeStorage.get('so_destination_v4', DEFAULT_DESTINATION),
-      waypoints: SafeStorage.get('so_waypoints_v4', []),
+      origin: SafeStorage.get('so_origin_v5', DEFAULT_ORIGIN),
+      destination: SafeStorage.get('so_destination_v5', DEFAULT_DESTINATION),
+      waypoints: SafeStorage.get('so_waypoints_v5', []),
 
-      ndwSigns: [...BUILTIN_NDW_SIGNS],
+      ndwSigns: [...BASE_KNOWN_SIGNS],
       accessStubM: 60,
 
       routes: [],
@@ -725,17 +699,21 @@
         mount: true
       }),
 
-      favorites: SafeStorage.get('so_favorites_v4', [
+      favorites: SafeStorage.get('so_favorites_v5', [
         {
-          title: 'C.G.Wiegersweg 9 → Dollard College Pontis',
+          title: 'Huis → Dollard College Pontis Winschoten',
           origin: DEFAULT_ORIGIN,
           destination: DEFAULT_DESTINATION,
           waypoints: []
         },
         {
-          title: 'Winschoten → Blauwestad',
-          origin: { label: 'Winschoten, Station', lat: 53.1444, lon: 7.0347 },
-          destination: { label: 'Blauwestad, Strand Zuid', lat: 53.1753, lon: 7.0681 },
+          title: 'Huis → Albert Heijn Winschoten (Beertsterweg 1D)',
+          origin: DEFAULT_ORIGIN,
+          destination: {
+            label: 'Albert Heijn — Beertsterweg 1D, 9672 BE Winschoten',
+            lat: 53.14945,
+            lon: 7.03985
+          },
           waypoints: []
         }
       ])
@@ -797,7 +775,6 @@
       renderDepartureChecklist();
       initSearchListeners();
       initMapLibre();
-      tryAutoLoadLocalNdwSignsJson();
       startBackgroundGpsTracker();
     });
 
@@ -824,58 +801,100 @@
     }
 
     /*************************************************************************
-     * NDW-SIGNS.JSON INLADEN & FILTEREN VOOR BROUTER
+     * LANDELIJKE AUTOMATISCHE VERKEERSBORDEN & FIETSPAD SCANNER (HEEL NL)
+     * Haalt voor elke geplande route automatisch verboden G11-fietspaden
+     * (moped=no), gesloten wegen (C13/C15) en verplichte G12a-paden op!
      *************************************************************************/
-    async function tryAutoLoadLocalNdwSignsJson() {
-      try {
-        const res = await fetch('./ndw-signs.json');
-        if (res.ok) {
-          const json = await res.json();
-          ingestNdwSignsFeatureCollection(json);
-        }
-      } catch (err) {}
-    }
+    async function fetchLiveCorridorSignsAnywhereInNL(pointsList) {
+      if (!pointsList || pointsList.length < 2) return;
 
-    function handleNdwJsonFileUpload(event) {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const json = JSON.parse(e.target.result);
-          const count = ingestNdwSignsFeatureCollection(json);
-          showToast(`${count.toLocaleString('nl-NL')} verkeersborden ingeladen`);
-          calculateAndRenderRoute();
-        } catch (err) {
-          showToast('Ongeldig JSON-bestand');
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    function ingestNdwSignsFeatureCollection(geojson) {
-      if (!geojson || !Array.isArray(geojson.features)) return 0;
-      const parsed = [...BUILTIN_NDW_SIGNS];
-      geojson.features.forEach((f) => {
-        const coords = f.geometry?.coordinates;
-        const props = f.properties || {};
-        if (!Array.isArray(coords) || coords.length < 2) return;
-        parsed.push({
-          lon: Number(coords[0]),
-          lat: Number(coords[1]),
-          code: String(props.code || '').toUpperCase(),
-          bearing: typeof props.bearing === 'number' ? props.bearing : null,
-          validated: props.validated || 'n',
-          textSigns: Array.isArray(props.textSigns) ? props.textSigns : [],
-          source: props.source || 'ndw'
-        });
+      let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+      pointsList.forEach((p) => {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lon < minLon) minLon = p.lon;
+        if (p.lon > maxLon) maxLon = p.lon;
       });
-      AppState.ndwSigns = parsed;
-      const badge = document.getElementById('ndwCountBadge');
-      if (badge) {
-        badge.textContent = `NDW geladen (${parsed.length.toLocaleString('nl-NL')})`;
+
+      // Alleen scannen als de bounding box redelijk is (< ~45 km) zodat hij razendsnel blijft
+      if (maxLat - minLat > 0.45 || maxLon - minLon > 0.55) return;
+
+      const pad = 0.018;
+      const bboxStr = `${(minLat - pad).toFixed(4)},${(minLon - pad).toFixed(4)},${(maxLat + pad).toFixed(4)},${(maxLon + pad).toFixed(4)}`;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2200);
+
+        const query = `
+          [out:json][timeout:2];
+          (
+            node["traffic_sign"~"G11|G12a|G13|C13|C15"](${bboxStr});
+            way["highway"="cycleway"]["moped"="no"](${bboxStr});
+            way["highway"~"primary|secondary|tertiary|unclassified"]["moped"="no"]["mofa"="no"](${bboxStr});
+            way["highway"="cycleway"]["moped"="designated"](${bboxStr});
+          );
+          out center 60;
+        `;
+
+        const res = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: query,
+          signal: controller.signal
+        }).then((r) => (r.ok ? r.json() : null));
+
+        clearTimeout(timeoutId);
+        if (!res || !Array.isArray(res.elements)) return;
+
+        const dynamicSigns = [...BASE_KNOWN_SIGNS];
+
+        res.elements.forEach((el) => {
+          const lat = el.lat || el.center?.lat;
+          const lon = el.lon || el.center?.lon;
+          if (typeof lat !== 'number' || typeof lon !== 'number') return;
+
+          const tags = el.tags || {};
+          const signTag = String(tags.traffic_sign || '').toUpperCase();
+
+          if (signTag.includes('G12A') || tags.moped === 'designated') {
+            dynamicSigns.push({
+              lon,
+              lat,
+              code: 'G12A',
+              validated: 'n',
+              desc: tags.name ? `${tags.name} (Bromfietspad G12a)` : 'Verplicht fiets-/bromfietspad (G12a)'
+            });
+          } else if (signTag.includes('C13') || signTag.includes('C15') || (tags.moped === 'no' && tags.mofa === 'no')) {
+            dynamicSigns.push({
+              lon,
+              lat,
+              code: 'C13',
+              validated: 'n',
+              desc: tags.name ? `${tags.name} (Verboden C13)` : 'Gesloten voor brom- en snorfietsen (C13)'
+            });
+          } else if (signTag.includes('G11') || (tags.highway === 'cycleway' && tags.moped === 'no')) {
+            dynamicSigns.push({
+              lon,
+              lat,
+              code: 'G11',
+              validated: 'n',
+              desc: tags.name ? `${tags.name} (Fietspad G11)` : 'Verplicht fietspad (Verboden voor Brom 45)'
+            });
+          } else if (signTag.includes('G13')) {
+            dynamicSigns.push({
+              lon,
+              lat,
+              code: 'G13',
+              validated: 'n',
+              desc: 'Onverplicht fietspad (G13)'
+            });
+          }
+        });
+
+        AppState.ndwSigns = dynamicSigns;
+      } catch (err) {
+        // Gebruik de al bekende borden als Overpass druk is
       }
-      return parsed.length;
     }
 
     function evaluateNdwSignForVehicle(sign, mode) {
@@ -927,13 +946,15 @@
         const verdict = evaluateNdwSignForVehicle(s, mode);
         if (verdict !== 'nogo') return;
 
+        // 1. accessStubM: 60m vrijstelling rondom vertrek en bestemming zodat je altijd een plein/straat op kunt
         const nearEndpoint = pointsList.some(
           (pt) => haversineKm(pt.lat, pt.lon, s.lat, s.lon) * 1000 <= AppState.accessStubM
         );
         if (nearEndpoint) return;
 
+        // 2. G12A override: waar een verplicht G12a-bromfietspad loopt (zoals Beertsterweg), niet blokkeren
         const nearG12a = g12aLocations.some(
-          (g) => haversineKm(g.lat, g.lon, s.lat, s.lon) * 1000 <= 35
+          (g) => haversineKm(g.lat, g.lon, s.lat, s.lon) * 1000 <= 45
         );
         if (nearG12a) return;
 
@@ -941,7 +962,7 @@
         nogoStrings.push(`${s.lon.toFixed(6)},${s.lat.toFixed(6)},${radiusMeters}`);
       });
 
-      return nogoStrings.slice(0, 110).join('|');
+      return nogoStrings.slice(0, 90).join('|');
     }
 
     /*************************************************************************
@@ -1063,7 +1084,7 @@
      *************************************************************************/
     function setVehicleMode(mode) {
       AppState.vehicleMode = mode === 'snor' ? 'snor' : 'brom';
-      SafeStorage.set('so_vehicle_mode_v4', AppState.vehicleMode);
+      SafeStorage.set('so_vehicle_mode_v5', AppState.vehicleMode);
       initVehicleModeUI();
       calculateAndRenderRoute();
     }
@@ -1178,16 +1199,9 @@
     }
 
     /*************************************************************************
-     * ROUTERING ENGINE (SCOOTMAPS LEGAL-GRAPH + BROUTER)
+     * LIVE ROUTERING ENGINE VOOR HEEL NEDERLAND (BROUTER + LIVE RVV NOGOS)
      *************************************************************************/
-    function isExactWiegerswegToPontisQuery(pointsList) {
-      if (!pointsList || pointsList.length !== 2) return false;
-      const dOrig = haversineKm(pointsList[0].lat, pointsList[0].lon, DEFAULT_ORIGIN.lat, DEFAULT_ORIGIN.lon);
-      const dDest = haversineKm(pointsList[1].lat, pointsList[1].lon, DEFAULT_DESTINATION.lat, DEFAULT_DESTINATION.lon);
-      return dOrig < 0.25 && dDest < 0.25;
-    }
-
-    function buildScootmapsRouteObjectFromCoords(coords, distanceM, timeS, mode, title) {
+    function buildRouteObjectFromCoords(coords, distanceM, timeS, mode, title) {
       const cleanCoords = coords.map((c) => [Number(c[0]), Number(c[1])]);
       const distanceKm = Number((distanceM / 1000).toFixed(1));
       const durationMin = Math.max(1, Math.round(timeS / 60));
@@ -1207,27 +1221,15 @@
       };
     }
 
-    async function fetchBrouterLegalGraphRoutes(pointsList, mode) {
-      const results = [];
-
-      if (isExactWiegerswegToPontisQuery(pointsList)) {
-        const isBrom = mode === 'brom';
-        results.push(
-          buildScootmapsRouteObjectFromCoords(
-            SCOOTMAPS_VERIFIED_COORDS_WIEGERSWEG_PONTIS,
-            isBrom ? 8876.07 : 8914.0,
-            isBrom ? 710 : 1284,
-            mode,
-            'Aanbevolen'
-          )
-        );
-      }
+    async function fetchLiveRoutesEverywhere(pointsList, mode) {
+      // 1. Scan eerst live de verkeersborden & fietspaden voor dit traject in heel Nederland
+      await fetchLiveCorridorSignsAnywhereInNL(pointsList);
 
       const lonlats = pointsList.map((p) => `${Number(p.lon).toFixed(6)},${Number(p.lat).toFixed(6)}`).join('|');
       const nogos = buildBrouterNogosFromNdwSigns(pointsList, mode);
       const brouterProfile = mode === 'brom' ? 'fastbike' : 'trekking';
 
-      const altIndices = results.length > 0 ? [1] : [0, 1];
+      const altIndices = [0, 1];
       const brouterPromises = altIndices.map((altIdx) => {
         const url = `https://brouter.de/brouter?lonlats=${encodeURIComponent(lonlats)}&profile=${brouterProfile}&alternativeidx=${altIdx}&format=geojson${
           nogos ? `&nogos=${encodeURIComponent(nogos)}` : ''
@@ -1238,6 +1240,7 @@
       });
 
       const brouterResponses = await Promise.all(brouterPromises);
+      const results = [];
 
       brouterResponses.forEach((geojson) => {
         const feat = geojson?.features?.[0];
@@ -1249,7 +1252,7 @@
         const effectiveSpeedMs = mode === 'brom' ? 12.5 : 6.92;
         const computedTimeS = trackLenM / effectiveSpeedMs;
 
-        const candidate = buildScootmapsRouteObjectFromCoords(
+        const candidate = buildRouteObjectFromCoords(
           coords,
           trackLenM,
           computedTimeS,
@@ -1282,7 +1285,7 @@
       if (pointsList.length < 2) return;
 
       try {
-        const routes = await fetchBrouterLegalGraphRoutes(pointsList, AppState.vehicleMode);
+        const routes = await fetchLiveRoutesEverywhere(pointsList, AppState.vehicleMode);
         if (!routes || routes.length === 0) {
           showToast('Geen verharde route gevonden');
           return;
@@ -1303,7 +1306,7 @@
     }
 
     /*************************************************************************
-     * TEKEN ROUTE OP DE KAART (ZONDER OVERBODIGE BADGES)
+     * TEKEN ROUTE OP DE KAART
      *************************************************************************/
     function drawAllRoutesOnMap(fitBounds = true) {
       if (!map || !map.isStyleLoaded()) return;
@@ -1386,7 +1389,6 @@
       updateRouteSummaryHeader();
     }
 
-    // Compacte route-pillekes rechtsboven in het paneel (alleen als er een alternatief is)
     function renderRouteAlternativesUI() {
       const container = document.getElementById('routeAlternativesContainer');
       if (!container) return;
@@ -1426,7 +1428,9 @@
     }
 
     /*************************************************************************
-     * PDOK LOCATIESERVER + PHOTON ADRESZOEKER
+     * SLIMME WINKEL-, SCHOOL- & ADRESZOEKER (NOMINATIM NL + PHOTON + PDOK BAG)
+     * Zoekt winkels zoals "Albert Heijn Winschoten" en haalt automatisch het
+     * exacte Nederlandse straat- + huisnummer + postcode adres op!
      *************************************************************************/
     function initInputsFromState() {
       const origEl = document.getElementById('originInput');
@@ -1488,41 +1492,145 @@
         return;
       }
       searchDebounceTimer = setTimeout(() => {
-        executePdokAndPhotonSearch(query);
+        executeSmartPoiAndAddressSearch(query);
       }, 220);
     }
 
-    async function executePdokAndPhotonSearch(query) {
+    // Haalt bij een gevonden winkel/POI het exacte officiële Nederlandse BAG-adres (straat + huisnummer + postcode) op bij PDOK
+    async function enrichPoiWithExactPdokAddress(lat, lon) {
+      try {
+        const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?lat=${lat}&lon=${lon}&type=adres&rows=1`;
+        const res = await fetch(url).then((r) => (r.ok ? r.json() : null));
+        const doc = res?.response?.docs?.[0];
+        if (doc && doc.weergavenaam) {
+          return doc.weergavenaam; // bijv. "Beertsterweg 1d, 9672BE Winschoten"
+        }
+      } catch (err) {}
+      return null;
+    }
+
+    async function executeSmartPoiAndAddressSearch(query) {
       const dropdown = document.getElementById('searchResultsDropdown');
       if (!dropdown) return;
 
       try {
+        // 1. Nominatim OpenStreetMap NL (vindt supermarkten zoals Albert Heijn, Jumbo, scholen en bedrijven)
+        const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=nl&limit=5&q=${encodeURIComponent(query)}`;
+        // 2. Photon Komoot OSM (LET OP: lang=default i.p.v. lang=nl zodat hij geen HTTP 400 geeft!)
+        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lang=default&limit=5&bbox=3.3,50.7,7.3,53.6`;
+        // 3. PDOK Locatieserver v3.1 (Officiële Nederlandse BAG-adressen en postcodes)
         const pdokUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(query)}&rows=5`;
-        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lang=nl&limit=3&bbox=3.3,50.7,7.3,53.6`;
 
-        const [pdokRes, photonRes] = await Promise.all([
-          fetch(pdokUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch(photonUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        const [nominatimRes, photonRes, pdokRes] = await Promise.all([
+          fetch(nominatimUrl, { headers: { 'Accept-Language': 'nl' } }).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+          fetch(photonUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(pdokUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null)
         ]);
 
         const items = [];
-        (pdokRes?.response?.docs || []).forEach((doc) => {
-          items.push({ label: doc.weergavenaam, type: doc.type || 'adres', pdokId: doc.id });
+        const seenKeys = new Set();
+
+        // Verwerk Nominatim resultaten (Winkels, Supermarkten, Scholen, Bedrijven)
+        (Array.isArray(nominatimRes) ? nominatimRes : []).forEach((n) => {
+          const lat = parseFloat(n.lat);
+          const lon = parseFloat(n.lon);
+          if (isNaN(lat) || isNaN(lon)) return;
+
+          const addr = n.address || {};
+          const poiName = n.name || addr.shop || addr.amenity || addr.office || addr.tourism || '';
+          const street = addr.road || addr.pedestrian || addr.footway || '';
+          const houseNum = addr.house_number || '';
+          const postcode = addr.postcode || '';
+          const city = addr.city || addr.town || addr.village || addr.municipality || '';
+
+          const addressLine = [
+            [street, houseNum].filter(Boolean).join(' '),
+            [postcode, city].filter(Boolean).join(' ')
+          ].filter(Boolean).join(', ');
+
+          const title = poiName || [street, houseNum].filter(Boolean).join(' ') || n.display_name.split(',')[0];
+          const subtitle = addressLine || n.display_name;
+          const dedupKey = `${title.toLowerCase()}-${city.toLowerCase()}-${lat.toFixed(3)}`;
+
+          if (!seenKeys.has(dedupKey)) {
+            seenKeys.add(dedupKey);
+            items.push({
+              title,
+              subtitle,
+              hasExactHouseNumber: Boolean(street && houseNum),
+              category: n.type || 'locatie',
+              lat,
+              lon
+            });
+          }
         });
 
+        // Verwerk Photon resultaten (POI's & Straten)
         (photonRes?.features || []).forEach((f) => {
           const p = f.properties || {};
           const coords = f.geometry?.coordinates;
           if (!coords) return;
-          const nameParts = [p.name, p.street, p.housenumber, p.city || p.town || p.village].filter(Boolean);
-          if (nameParts.length === 0) return;
-          const label = nameParts.join(', ');
-          if (!items.some((i) => i.label.toLowerCase() === label.toLowerCase())) {
-            items.push({ label, type: p.osm_value || 'locatie', lat: coords[1], lon: coords[0] });
+          const lon = coords[0];
+          const lat = coords[1];
+
+          const poiName = p.name || '';
+          const street = p.street || '';
+          const houseNum = p.housenumber || '';
+          const postcode = p.postcode || '';
+          const city = p.city || p.town || p.village || '';
+
+          const addressLine = [
+            [street, houseNum].filter(Boolean).join(' '),
+            [postcode, city].filter(Boolean).join(' ')
+          ].filter(Boolean).join(', ');
+
+          const title = poiName || [street, houseNum].filter(Boolean).join(' ');
+          if (!title) return;
+          const subtitle = addressLine || city || 'Nederland';
+          const dedupKey = `${title.toLowerCase()}-${city.toLowerCase()}-${lat.toFixed(3)}`;
+
+          if (!seenKeys.has(dedupKey)) {
+            seenKeys.add(dedupKey);
+            items.push({
+              title,
+              subtitle,
+              hasExactHouseNumber: Boolean(street && houseNum),
+              category: p.osm_value || 'locatie',
+              lat,
+              lon
+            });
           }
         });
 
-        renderSearchDropdownItems(items);
+        // Verwerk PDOK BAG-suggesties (Officiële adressen)
+        (pdokRes?.response?.docs || []).forEach((doc) => {
+          const label = doc.weergavenaam;
+          const dedupKey = label.toLowerCase();
+          if (!seenKeys.has(dedupKey)) {
+            seenKeys.add(dedupKey);
+            items.push({
+              title: label,
+              subtitle: `Officieel BAG-${doc.type || 'adres'}`,
+              hasExactHouseNumber: true,
+              category: doc.type || 'adres',
+              pdokId: doc.id
+            });
+          }
+        });
+
+        // Verrijk de bovenste 3 winkel/POI-resultaten die nog geen huisnummer hebben direct met het exacte PDOK BAG-adres!
+        const enrichPromises = items.slice(0, 4).map(async (item) => {
+          if (!item.hasExactHouseNumber && typeof item.lat === 'number' && typeof item.lon === 'number') {
+            const exactBagAddress = await enrichPoiWithExactPdokAddress(item.lat, item.lon);
+            if (exactBagAddress) {
+              item.subtitle = exactBagAddress;
+              item.hasExactHouseNumber = true;
+            }
+          }
+        });
+        await Promise.all(enrichPromises);
+
+        renderSearchDropdownItems(items.slice(0, 8));
       } catch (err) {
         hideSearchDropdown();
       }
@@ -1541,12 +1649,13 @@
       items.forEach((item) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center justify-between gap-2 transition';
+        btn.className = 'w-full text-left px-4 py-3 hover:bg-emerald-50/60 flex items-center justify-between gap-3 transition';
         btn.innerHTML = `
-          <div class="min-w-0">
-            <div class="text-sm font-semibold text-slate-800 truncate">${item.label}</div>
-            <div class="text-[10px] text-slate-400 uppercase font-medium">${item.type}</div>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-bold text-slate-900 truncate">${item.title}</div>
+            <div class="text-xs font-medium text-slate-500 truncate mt-0.5">📍 ${item.subtitle}</div>
           </div>
+          <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase shrink-0">${item.category}</span>
         `;
         btn.onclick = () => handleSelectSearchResult(item);
         dropdown.appendChild(btn);
@@ -1559,7 +1668,9 @@
       hideSearchDropdown();
       let lat = item.lat;
       let lon = item.lon;
+      let finalLabel = item.title;
 
+      // Als het een PDOK resultaat is, haal de exacte coördinaten op via /lookup
       if (item.pdokId && (typeof lat !== 'number' || typeof lon !== 'number')) {
         try {
           const lookupUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${encodeURIComponent(item.pdokId)}`;
@@ -1571,32 +1682,46 @@
               lon = parseFloat(match[1]);
               lat = parseFloat(match[2]);
             }
+            if (doc.weergavenaam) finalLabel = doc.weergavenaam;
           }
         } catch (err) {
           return;
+        }
+      } else if (typeof lat === 'number' && typeof lon === 'number') {
+        // Als het een winkel/school/POI is (bijv. "Albert Heijn"), zorg dat het exacte adres erachter staat!
+        let exactAddr = item.subtitle;
+        if (!item.hasExactHouseNumber) {
+          const lookedUp = await enrichPoiWithExactPdokAddress(lat, lon);
+          if (lookedUp) exactAddr = lookedUp;
+        }
+        if (exactAddr && !item.title.toLowerCase().includes(exactAddr.split(',')[0].toLowerCase())) {
+          finalLabel = `${item.title} — ${exactAddr}`;
+        } else {
+          finalLabel = exactAddr || item.title;
         }
       }
 
       if (typeof lat !== 'number' || typeof lon !== 'number') return;
 
-      const selectedPoint = { label: item.label, lat, lon };
+      const selectedPoint = { label: finalLabel, lat, lon };
 
       if (activeSearchTarget === 'origin') {
         AppState.origin = selectedPoint;
-        SafeStorage.set('so_origin_v4', selectedPoint);
-        document.getElementById('originInput').value = item.label;
+        SafeStorage.set('so_origin_v5', selectedPoint);
+        document.getElementById('originInput').value = finalLabel;
       } else if (activeSearchTarget.startsWith('waypoint-')) {
         const idx = parseInt(activeSearchTarget.split('-')[1], 10);
         if (AppState.waypoints[idx]) {
           AppState.waypoints[idx] = selectedPoint;
-          SafeStorage.set('so_waypoints_v4', AppState.waypoints);
+          SafeStorage.set('so_waypoints_v5', AppState.waypoints);
           renderWaypointsList();
         }
       } else {
         AppState.destination = selectedPoint;
-        SafeStorage.set('so_destination_v4', selectedPoint);
-        document.getElementById('destinationInput').value = item.label;
+        SafeStorage.set('so_destination_v5', selectedPoint);
+        document.getElementById('destinationInput').value = finalLabel;
         document.getElementById('globalSearchInput').value = '';
+        document.getElementById('clearGlobalSearchBtn').classList.add('hidden');
       }
 
       calculateAndRenderRoute();
@@ -1622,7 +1747,7 @@
           <input
             type="text"
             value="${wp.label || ''}"
-            placeholder="Tussenstop ${idx + 1}..."
+            placeholder="Tussenstop ${idx + 1} (winkel, adres of plaats)..."
             class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-500"
           />
           <button type="button" class="px-2 py-1 text-slate-400 hover:text-red-500 text-xs font-bold" title="Verwijder">✕</button>
@@ -1636,7 +1761,7 @@
 
         row.querySelector('button').onclick = () => {
           AppState.waypoints.splice(idx, 1);
-          SafeStorage.set('so_waypoints_v4', AppState.waypoints);
+          SafeStorage.set('so_waypoints_v5', AppState.waypoints);
           renderWaypointsList();
           calculateAndRenderRoute();
         };
@@ -1649,7 +1774,7 @@
       const midLat = (AppState.origin.lat + AppState.destination.lat) / 2;
       const midLon = (AppState.origin.lon + AppState.destination.lon) / 2;
       AppState.waypoints.push({ label: '', lat: midLat, lon: midLon });
-      SafeStorage.set('so_waypoints_v4', AppState.waypoints);
+      SafeStorage.set('so_waypoints_v5', AppState.waypoints);
       renderWaypointsList();
     }
 
@@ -1657,8 +1782,8 @@
       const temp = AppState.origin;
       AppState.origin = AppState.destination;
       AppState.destination = temp;
-      SafeStorage.set('so_origin_v4', AppState.origin);
-      SafeStorage.set('so_destination_v4', AppState.destination);
+      SafeStorage.set('so_origin_v5', AppState.origin);
+      SafeStorage.set('so_destination_v5', AppState.destination);
       initInputsFromState();
       calculateAndRenderRoute();
     }
@@ -1699,7 +1824,7 @@
       const pad = 0.03;
       AppState.ndwSigns
         .filter((s) => s.lat >= minLat - pad && s.lat <= maxLat + pad && s.lon >= minLon - pad && s.lon <= maxLon + pad)
-        .slice(0, 35)
+        .slice(0, 40)
         .forEach((s) => {
           const verdict = evaluateNdwSignForVehicle(s, AppState.vehicleMode);
           const bg = s.code === 'G12A' ? '#0284c7' : verdict === 'nogo' ? '#dc2626' : '#059669';
@@ -1987,13 +2112,16 @@
       if (!('geolocation' in navigator)) return;
       showToast('GPS-locatie ophalen...');
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const exactAddress = await enrichPoiWithExactPdokAddress(lat, lon);
           AppState.origin = {
-            label: 'Huidige locatie',
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude
+            label: exactAddress || 'Huidige locatie',
+            lat,
+            lon
           };
-          SafeStorage.set('so_origin_v4', AppState.origin);
+          SafeStorage.set('so_origin_v5', AppState.origin);
           document.getElementById('originInput').value = AppState.origin.label;
           calculateAndRenderRoute();
         },
@@ -2133,9 +2261,9 @@
           AppState.origin = { ...fav.origin };
           AppState.destination = { ...fav.destination };
           AppState.waypoints = Array.isArray(fav.waypoints) ? [...fav.waypoints] : [];
-          SafeStorage.set('so_origin_v4', AppState.origin);
-          SafeStorage.set('so_destination_v4', AppState.destination);
-          SafeStorage.set('so_waypoints_v4', AppState.waypoints);
+          SafeStorage.set('so_origin_v5', AppState.origin);
+          SafeStorage.set('so_destination_v5', AppState.destination);
+          SafeStorage.set('so_waypoints_v5', AppState.waypoints);
           initInputsFromState();
           renderWaypointsList();
           switchBottomTab('route');
@@ -2144,7 +2272,7 @@
 
         delBtn.onclick = () => {
           AppState.favorites.splice(idx, 1);
-          SafeStorage.set('so_favorites_v4', AppState.favorites);
+          SafeStorage.set('so_favorites_v5', AppState.favorites);
           renderFavoritesList();
         };
 
@@ -2160,7 +2288,7 @@
         destination: { ...AppState.destination },
         waypoints: [...AppState.waypoints]
       });
-      SafeStorage.set('so_favorites_v4', AppState.favorites);
+      SafeStorage.set('so_favorites_v5', AppState.favorites);
       renderFavoritesList();
       showToast('Route opgeslagen');
     }
